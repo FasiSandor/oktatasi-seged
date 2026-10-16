@@ -16,7 +16,8 @@
     "jose": "6.1.0",
     "@aws-sdk/client-s3": "3.916.0",
     "@aws-sdk/s3-request-presigner": "3.916.0",
-    "@neondatabase/auth": "0.5.0-beta"
+    "@neondatabase/auth": "0.5.0-beta",
+    "pdfjs-dist": "4.10.38"
   },
   "devDependencies": {
     "typescript": "5.9.3",
