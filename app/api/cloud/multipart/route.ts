@@ -12,13 +12,16 @@ export async function POST(req:NextRequest){
   if(typeof body.filename!=='string'||!body.filename.trim()||body.filename.length>240||body.mimeType!=='application/pdf'||!Number.isSafeInteger(body.size)||body.size<partSize||body.size>maxBytes)throw Error('INVALID');
   const id=crypto.randomUUID(),key=owner.replace(/[^a-z0-9_-]/gi,'_')+'/'+id;
   const client=s3();
-  const session=await client.send(new CreateMultipartUploadCommand({Bucket:bucket(),Key:key,ContentType:body.mimeType}));
+  let session;
+  try{session=await client.send(new CreateMultipartUploadCommand({Bucket:bucket(),Key:key,ContentType:body.mimeType}));}
+  catch(error){console.error('Multipart storage start failed',error);return Response.json({error:'A tárhely nem tudta előkészíteni a PDF-feltöltést.',code:'STORAGE_INIT_FAILED'},{status:502})}
   if(!session.UploadId)throw Error('Storage initiation failed');
   try{
    await sql`INSERT INTO os_documents(id,owner_id,title,filename,mime_type,byte_size,storage_key,state) VALUES(${id},${owner},${body.filename},${body.filename},${body.mimeType},${body.size},${key},'pending')`;
   }catch(error){
    await client.send(new AbortMultipartUploadCommand({Bucket:bucket(),Key:key,UploadId:session.UploadId})).catch(()=>{});
-   throw error;
+   console.error('Multipart database insert failed',error);
+   return Response.json({error:'Nem sikerült rögzíteni a feltöltést az adatbázisban.',code:'DOCUMENT_RECORD_FAILED'},{status:503});
   }
   return Response.json({documentId:id,uploadId:session.UploadId,partSize});
  }
