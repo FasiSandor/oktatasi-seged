@@ -133,7 +133,7 @@ async function upload(file:File):Promise<string>{
      const page=await pdf.getPage(index),viewport=page.getViewport({scale:1.65});
      const canvas=document.createElement('canvas');canvas.width=Math.ceil(viewport.width);canvas.height=Math.ceil(viewport.height);
      const context=canvas.getContext('2d');if(!context)throw Error('A PDF megjelenítése nem lehetséges.');
-     await page.render({canvas,canvasContext:context,viewport}).promise;
+     await page.render({canvasContext:context,viewport}).promise;
      images.push({page:index,data:canvas.toDataURL('image/jpeg',0.82).split(',')[1]});
      canvas.width=0;canvas.height=0;
     }
