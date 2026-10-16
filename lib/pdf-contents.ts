@@ -51,10 +51,12 @@ export async function inspectPdf(file:File):Promise<{chapters:ProposedChapter[];
   // One side of a two-column TOC must not consume text from the other column.
   const candidates:{title:string;printed:number}[]=[];
   for(const index of candidatePages){
-   const {items,width}=await positioned(index);
+   const {items,width,height}=await positioned(index);
    if(!items.some(x=>/^TARTALOM(?:JEGYZÉK)?$/i.test(x.str.trim())))continue;
-   const left=items.filter(x=>x.x<width*.5);
-   const right=items.filter(x=>x.x>=width*.5);
+   // Remove page-number footers, top banner, and other non-TOC chrome.
+   const contentItems=items.filter(x=>x.y>height*.115&&x.y<height*.855);
+   const left=contentItems.filter(x=>x.x<width*.5);
+   const right=contentItems.filter(x=>x.x>=width*.5);
    for(const column of [left,right]){
     const bands=new Map<number,Positioned[]>();
     for(const token of column){
@@ -70,7 +72,9 @@ export async function inspectPdf(file:File):Promise<{chapters:ProposedChapter[];
      const last=tokens[tokens.length-1];
      const match=text.match(/^(.{4,155}?)\s*(?:\.\s*){2,}(\d{1,4})$/)
        ||text.match(/^(.{4,155}?)\s{2,}(\d{1,4})$/);
-     const pageNumber=/^\d{1,4}$/.test(last.str.trim())?Number(last.str.trim()):match?Number(match[2]):null;
+     // A number is a TOC page number only when positioned on the outer edge of its column.
+     const onOuterEdge=last.x>(column===left?width*.445:width*.88);
+     const pageNumber=onOuterEdge&&/^\d{1,4}$/.test(last.str.trim())?Number(last.str.trim()):match?Number(match[2]):null;
      const title=pageNumber!==null
       ?(match?.[1]||tokens.slice(0,-1).map(t=>t.str).join(' ')).replace(/(?:\s*\.\s*){2,}$/,'').trim()
       :'';
@@ -82,7 +86,9 @@ export async function inspectPdf(file:File):Promise<{chapters:ProposedChapter[];
      }else if(pageNumber!==null&&wrapped&&pageNumber<=pdf.numPages){
       candidates.push({title:wrapped,printed:pageNumber});wrapped='';
      }else if(text.length>5&&!/^\d+$/.test(text)&&!/^[A-ZÁÉÍÓÖŐÚÜŰ ,–-]{6,}$/.test(text)&&!/^A tankönyv témakörei/i.test(text)){
-      wrapped=text.replace(/(?:\s*\.\s*){2,}$/,'').replace(/^\s*(?:\d{1,3}|R)\s+/,'').trim().slice(0,140);
+      const fragment=text.replace(/(?:\s*\.\s*){2,}$/,'').replace(/^\s*(?:\d{1,3}|R)\s+/,'').trim();
+      wrapped=(wrapped?wrapped+' ':'')+fragment;
+      wrapped=wrapped.slice(0,160);
      }else wrapped='';
     }
    }
