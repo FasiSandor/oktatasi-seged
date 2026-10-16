@@ -1,0 +1,21 @@
+name: Library static checks
+on:
+  push:
+    branches: [develop/library-foundation]
+  pull_request:
+    branches: [main]
+jobs:
+  static-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check library.js
+      - run: |
+          test -s library.html
+          test -s library.css
+          test -s library.js
+          grep -q 'library.js' library.html
+          grep -q 'library.css' library.html
