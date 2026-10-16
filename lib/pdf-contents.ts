@@ -32,61 +32,67 @@ export async function inspectPdf(file:File):Promise<{chapters:ProposedChapter[];
   };
   if(outline?.length)await walk(outline,0);
   if(found.length)return {chapters:found.sort((a,b)=>a.page-b.page),notice:'PDF-könyvjelzőkből felismert fejezetek. Ellenőrizd a címeket és PDF-oldalakat.'};
-  // Fallback: inspect pages headed TARTALOM, not arbitrary textbook body text.
-  // A printed page number is NOT a PDF page index. Calibrate using the TOC page's own label.
-  const candidatePages=[...new Set([...Array.from({length:Math.min(pdf.numPages,20)},(_,i)=>i+1),...Array.from({length:Math.min(pdf.numPages,14)},(_,i)=>pdf.numPages-i)])];
-  // Printed pages can be offset by cover and copyright pages.
-  // Infer it only from a clearly identifiable numbered page footer.
+  // Printed table of contents: inspect both ends of a textbook.
+  const candidatePages=[...new Set([...Array.from({length:Math.min(pdf.numPages,20)},(_,i)=>i+1),...Array.from({length:Math.min(pdf.numPages,18)},(_,i)=>pdf.numPages-i)])];
+  type Positioned={x:number;y:number;str:string};
+  async function positioned(index:number):Promise<{items:Positioned[];width:number;height:number}>{
+   const page=await pdf.getPage(index),viewport=page.getViewport({scale:1}),content=await page.getTextContent();
+   return {width:viewport.width,height:viewport.height,items:content.items.filter((v):v is typeof v & {str:string;transform:number[]}=>'str'in v&&'transform'in v&&typeof v.str==='string'&&!!v.str.trim()).map(v=>({str:v.str,x:v.transform[4],y:v.transform[5]}))};
+  }
+  // A page number must be verified before generating a jump. Avoid treating a printed page as a PDF page.
   let offset:number|null=null;
-  for(const index of [5,6,7,8,9]){
+  for(const index of [5,6,7,8,9,10,11,12]){
    if(index>pdf.numPages)break;
-   const p=await pdf.getPage(index);const c=await p.getTextContent();
-   const footer=c.items.filter(t=>'str' in t&&'transform' in t&&t.transform[5]<85&&/^\\d{1,3}$/.test(t.str.trim()));
-   const labels=footer.map(t=>Number(('str'in t?t.str:'').trim())).filter(n=>n>=1&&n<index);
+   const {items,height}=await positioned(index);
+   const labels=items.filter(x=>x.y<Math.min(75,height*.12)&&/^\d{1,3}$/.test(x.str.trim()))
+    .map(x=>Number(x.str.trim())).filter(n=>n>=1&&n<=index);
    if(labels.length===1){offset=index-labels[0];break}
   }
-  for(const i of candidatePages){
-   if(found.length>=120)break;
-   const page=await pdf.getPage(i);const content=await page.getTextContent();
-   const items=content.items.filter((part):part is typeof part & {str:string;transform:number[]} => 'str'in part&&typeof part.str==='string'&&'transform'in part);
-   const preview=items.slice(0,15).map(x=>x.str.trim()).filter(Boolean);
-   const heading=preview.some(x=>/^TARTALOM(?:JEGYZÉK)?$/i.test(x))||items.some(x=>/^TARTALOM(?:JEGYZÉK)?$/i.test(x.str.trim()));
-   if(!heading)continue;
-   if(offset===null){
-    const headingIndex=preview.findIndex(x=>/^TARTALOM(?:JEGYZÉK)?$/i.test(x));
-    const printedLabel=preview.slice(headingIndex+1,headingIndex+4).find(x=>/^\d{1,3}$/.test(x));
-    if(printedLabel){const candidate=(i-Number(printedLabel));if(candidate>=-25&&candidate<=30)offset=candidate}
-   }
-   const lines=new Map<number,{x:number;text:string}[]>();
-   for(const part of items){
-    if(!part.str.trim())continue;
-    const y=Math.round(part.transform[5]/3)*3;
-    const line=lines.get(y)||[];line.push({x:part.transform[4],text:part.str});lines.set(y,line);
-   }
-   const ordered=[...lines.entries()].sort((a,b)=>b[0]-a[0]);
-   let pendingTitle='';
-   let previousLine='';
-   for(const [,parts] of ordered){
-    const line=parts.sort((a,b)=>a.x-b.x).map(x=>x.text).join(' ').replace(/\s+/g,' ').trim();
-    if(!line||/^TARTALOM(?:JEGYZÉK)?$/i.test(line))continue;
-    // Dot leaders can be printed as spaced dots: ". . . . .".
-    const match=line.match(/^(.{5,135}?)(?:\s*(?:\.\s*){3,}|\s{3,})(\d{1,4})\s*$/);
-    if(match){
-     const printed=Number(match[2]);
-     const pdfPage=offset===null?0:printed+offset;
-     if(pdfPage>=1&&pdfPage<=pdf.numPages)add(match[1].replace(/^\s*\d{1,3}\.\s*/,''),pdfPage,'contents');
-     pendingTitle='';continue;
+  // One side of a two-column TOC must not consume text from the other column.
+  const candidates:{title:string;printed:number}[]=[];
+  for(const index of candidatePages){
+   const {items,width}=await positioned(index);
+   if(!items.some(x=>/^TARTALOM(?:JEGYZÉK)?$/i.test(x.str.trim())))continue;
+   const left=items.filter(x=>x.x<width*.5);
+   const right=items.filter(x=>x.x>=width*.5);
+   for(const column of [left,right]){
+    const bands=new Map<number,Positioned[]>();
+    for(const token of column){
+     const band=Math.round(token.y/3)*3;
+     bands.set(band,[...(bands.get(band)||[]),token]);
     }
-    // Some PDF generators put the title and page number on separate text rows.
-    if(/^\d{1,4}$/.test(line)&&pendingTitle){
-     const printed=Number(line),pdfPage=offset===null?0:printed+offset;
-     if(pdfPage>=1&&pdfPage<=pdf.numPages)add(pendingTitle||previousLine,pdfPage,'contents');
-     pendingTitle='';continue;
+    const rows=[...bands.entries()].sort((a,b)=>b[0]-a[0]).map(([,tokens])=>tokens.sort((a,b)=>a.x-b.x));
+    let wrapped='';
+    for(const tokens of rows){
+     const text=tokens.map(t=>t.str).join(' ').replace(/\s+/g,' ').trim();
+     if(!text||/^TARTALOM(?:JEGYZÉK)?$/i.test(text))continue;
+     // Right-aligned printed page number, independent of dotted leaders or font spacing.
+     const last=tokens[tokens.length-1];
+     const match=text.match(/^(.{4,155}?)\s*(?:\.\s*){2,}(\d{1,4})$/)
+       ||text.match(/^(.{4,155}?)\s{2,}(\d{1,4})$/);
+     const pageNumber=/^\d{1,4}$/.test(last.str.trim())?Number(last.str.trim()):match?Number(match[2]):null;
+     const title=pageNumber!==null
+      ?(match?.[1]||tokens.slice(0,-1).map(t=>t.str).join(' ')).replace(/(?:\s*\.\s*){2,}$/,'').trim()
+      :'';
+     if(pageNumber!==null&&title.length>=4&&pageNumber<=pdf.numPages){
+      const cleaned=(wrapped?wrapped+' ':'')+title;
+      const safe=cleaned.replace(/^\s*(?:\d{1,3}|R)\s+/, '').replace(/\s+/g,' ').trim();
+      if(safe.length>=4)candidates.push({title:safe,printed:pageNumber});
+      wrapped='';
+     }else if(pageNumber!==null&&wrapped&&pageNumber<=pdf.numPages){
+      candidates.push({title:wrapped,printed:pageNumber});wrapped='';
+     }else if(text.length>5&&!/^\d+$/.test(text)&&!/^[A-ZÁÉÍÓÖŐÚÜŰ ,–-]{6,}$/.test(text)&&!/^A tankönyv témakörei/i.test(text)){
+      wrapped=text.replace(/(?:\s*\.\s*){2,}$/,'').replace(/^\s*(?:\d{1,3}|R)\s+/,'').trim().slice(0,140);
+     }else wrapped='';
     }
-    if(/(?:\.\s*){4,}/.test(line))pendingTitle=line.replace(/(?:\.\s*){3,}.*$/,'').replace(/^\s*\d{1,3}\.\s*/,'').trim();
-    else if(line.length>70)pendingTitle='';
    }
   }
-  return {chapters:found,notice:found.length?'A tartalomjegyzék fejezeteit és a PDF-oldalakra számított hivatkozásokat megtaláltam. A javaslatok nincsenek kijelölve; ellenőrizd és hagyd jóvá őket.':'Nem találtam megbízható tartalomjegyzéket. A könyv ettől függetlenül feltölthető, a témakörök később kézzel hozzáadhatók.'};
+  if(offset!==null){
+   for(const c of candidates){
+    const page=c.printed+offset;
+    add(c.title,page,'contents');
+   }
+  }
+  return {chapters:found,notice:found.length?'Két hasábos tartalomjegyzékből készült javaslatok. Ellenőrizd az oldalszámokat, a javaslatok nincsenek automatikusan kijelölve.':'Nem sikerült ellenőrzött PDF-oldalszámú tartalomjegyzéket készíteni. A nyomtatott és PDF-oldal közötti eltérés nem volt igazolható; a könyv ettől függetlenül használható.'};
  }finally{await pdf.destroy()}
 }
