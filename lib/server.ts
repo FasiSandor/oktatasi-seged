@@ -22,7 +22,7 @@ export async function ownerFromRequest(req:NextRequest):Promise<string>{
 export function s3(){
  const endpoint=process.env.S3_ENDPOINT,accessKeyId=process.env.S3_ACCESS_KEY_ID,secretAccessKey=process.env.S3_SECRET_ACCESS_KEY;
  if(!endpoint||!accessKeyId||!secretAccessKey)throw new Error('Storage not configured');
- return new S3Client({region:process.env.S3_REGION||'eu-central-1',endpoint,forcePathStyle:true,credentials:{accessKeyId,secretAccessKey}});
+ return new S3Client({region:process.env.S3_REGION||'eu-central-1',endpoint,forcePathStyle:true,requestChecksumCalculation:'WHEN_REQUIRED',credentials:{accessKeyId,secretAccessKey}});
 }
 export function bucket(){const name=process.env.S3_BUCKET;if(!name)throw new Error('S3_BUCKET is missing');return name}
 export function apiError(e:unknown){
