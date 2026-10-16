@@ -82,7 +82,7 @@ export default function Cloud(){
   for(const chapter of selected){
    const label=chapter.title.trim().slice(0,120);if(!label)continue;
    let id=saved.get(label.toLocaleLowerCase('hu'));
-   if(!id){const data=await api('topics',{method:'POST',body:JSON.stringify({subjectId:subject,name:label})});id=data.topic.id;saved.set(label.toLocaleLowerCase('hu'),id)}
+   if(!id){const data=await api('topics',{method:'POST',body:JSON.stringify({subjectId:subject,name:label})});id=String(data.topic.id);saved.set(label.toLocaleLowerCase('hu'),id)}
    await api('links',{method:'POST',body:JSON.stringify({topicId:id,documentId:suggestionDoc,category:'reference',page:chapter.page})});count++;
   }
   await getTopics(subject);setSuggestions([]);setSuggestionDoc('');setMessage(count+' fejezet kapcsolva a könyvhöz. A PDF-ugrások készen állnak.');
