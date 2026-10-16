@@ -11,7 +11,8 @@ export function authClient() {
 }
 export async function authenticatedJWT():Promise<string> {
   const client = authClient();
-  const token = await client.getJWTToken?.();
+  const result = await client.token();
+  const token = result.data?.token;
   if (!token || typeof token !== 'string') throw new Error('Jelentkezz be ismét.');
   return token;
 }
