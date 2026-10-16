@@ -23,28 +23,38 @@ export default function Cloud(){
  async function getDocs(id:string){setTopic(id);const [d,t]=await Promise.all([api('documents?topicId='+encodeURIComponent(id)),api('tools?topicId='+encodeURIComponent(id))]);setDocs(d.documents);setTools(t.tools)}
  async function createSubject(){const name=prompt('Tantárgy neve');if(!name)return;await api('subjects',{method:'POST',body:JSON.stringify({name})});await getSubjects()}
  async function createTopic(){const name=prompt('Új témakör');if(!name||!subject)return;await api('topics',{method:'POST',body:JSON.stringify({name,subjectId:subject})});await getTopics(subject)}
- async function upload(file:File):Promise<string>{
+ async function directPut(url:string,file:File,mime:string):Promise<void>{
+ return new Promise((resolve,reject)=>{
+  const xhr=new XMLHttpRequest();
+  xhr.open('PUT',url,true);
+  xhr.timeout=10*60*1000;
+  xhr.setRequestHeader('Content-Type',mime);
+  xhr.upload.onprogress=event=>{
+   if(event.lengthComputable&&event.total>0){
+    const pct=Math.min(99,Math.round(event.loaded/event.total*100));
+    setUploadStatus('Feltöltés: '+pct+'% ('+Math.round(event.loaded/1048576)+' / '+Math.round(event.total/1048576)+' MB)');
+   }
+  };
+  xhr.onload=()=>xhr.status>=200&&xhr.status<300?resolve():reject(new Error('A tárhely elutasította a feltöltést (HTTP '+xhr.status+').'));
+  xhr.onerror=()=>reject(new Error('Nem sikerült elérni a privát tárhelyet. Lehetséges hálózati vagy CORS-hiba.'));
+  xhr.ontimeout=()=>reject(new Error('A fájl feltöltése időtúllépés miatt megszakadt.'));
+  xhr.send(file);
+ });
+}
+async function upload(file:File):Promise<string>{
  // A könyv önállóan is feltölthető; témakörhöz később rendelhető.
- if(file.size>250*1024*1024)throw Error('Legfeljebb 250 MB tölthető fel.');
+ if(file.size>500*1024*1024)throw Error('Legfeljebb 500 MB tölthető fel.');
  const mime=file.type||({pdf:'application/pdf',jpg:'image/jpeg',jpeg:'image/jpeg',png:'image/png',webp:'image/webp',docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',xlsx:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',pptx:'application/vnd.openxmlformats-officedocument.presentationml.presentation'} as Record<string,string>)[file.name.split('.').pop()?.toLowerCase()||''];
- let documentId:string;
- // Direct-to-storage presigned PUT works for both small and large original files.
- // The browser sends bytes to Neon Storage without routing them through Vercel.
- {
-  setUploadStatus('Feltöltési hivatkozás előkészítése…');
-  const up=await api('upload',{method:'POST',body:JSON.stringify({filename:file.name,mimeType:mime,size:file.size})});
-  documentId=up.documentId;
-  setUploadStatus('PDF átvitele közvetlenül a privát tárhelyre…');
-  let put:Response;
-  try{put=await fetch(up.uploadUrl,{method:'PUT',headers:{'Content-Type':mime},body:file})}
-  catch{throw Error('Nem sikerült elérni a privát tárhelyet. Lehetséges hálózati vagy CORS-hiba.')}
-  if(!put.ok)throw Error('A tárhely elutasította a feltöltést (HTTP '+put.status+').');
-  setUploadStatus('Feltöltött fájl ellenőrzése…');
-  await api('upload/complete',{method:'POST',body:JSON.stringify({documentId})});
- }
-
- if(topic){await api('links',{method:'POST',body:JSON.stringify({topicId:topic,documentId,category,page:mime==='application/pdf'?startPage:null})});await getDocs(topic)}
- setMessage('A könyv feltöltve. Válassz témakört, és rendeld hozzá a megfelelő PDF-oldalt.');setAllDocs((await api('documents')).documents);return documentId;
+ setUploadStatus('Feltöltési hivatkozás előkészítése…');
+ const up=await api('upload',{method:'POST',body:JSON.stringify({filename:file.name,mimeType:mime,size:file.size})});
+ setUploadStatus('Kapcsolódás a privát tárhelyhez…');
+ await directPut(up.uploadUrl,file,mime);
+ setUploadStatus('Feltöltött fájl ellenőrzése…');
+ await api('upload/complete',{method:'POST',body:JSON.stringify({documentId:up.documentId})});
+ if(topic){await api('links',{method:'POST',body:JSON.stringify({topicId:topic,documentId:up.documentId,category,page:mime==='application/pdf'?startPage:null})});await getDocs(topic)}
+ setMessage('A könyv feltöltve. Válassz témakört, és rendeld hozzá a megfelelő PDF-oldalt.');
+ setAllDocs((await api('documents')).documents);
+ return up.documentId;
 }
  async function importBook(file:File){
   setBusy(true);setSelectedFilename(file.name);setUploadStatus('PDF elemzése…');setSuggestions([]);setSuggestionMatches({});setSuggestionDoc('');setSuggestionNotice('');setMessage('PDF tartalomjegyzék vizsgálata…');
