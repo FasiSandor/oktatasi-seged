@@ -1,0 +1,1 @@
+export default function Home(){return <main style={{maxWidth:800,margin:'auto',padding:24}}><h1>Oktatási Segéd</h1><p>A biztonságos felhőintegráció fejlesztés alatt áll. A korábbi helyi könyvtár továbbra is a <a href="/library.html">könyvtárfelületen</a> érhető el.</p></main>}
