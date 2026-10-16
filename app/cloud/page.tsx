@@ -19,10 +19,42 @@ export default function Cloud(){
  async function getDocs(id:string){setTopic(id);const [d,t]=await Promise.all([api('documents?topicId='+encodeURIComponent(id)),api('tools?topicId='+encodeURIComponent(id))]);setDocs(d.documents);setTools(t.tools)}
  async function createSubject(){const name=prompt('Tantárgy neve');if(!name)return;await api('subjects',{method:'POST',body:JSON.stringify({name})});await getSubjects()}
  async function createTopic(){const name=prompt('Új témakör');if(!name||!subject)return;await api('topics',{method:'POST',body:JSON.stringify({name,subjectId:subject})});await getTopics(subject)}
- async function upload(file:File){if(!topic)throw Error('Előbb válassz témakört.');const up=await api('upload',{method:'POST',body:JSON.stringify({filename:file.name,mimeType:file.type,size:file.size})});
- const put=await fetch(up.uploadUrl,{method:'PUT',headers:{'Content-Type':file.type},body:file});if(!put.ok)throw Error('Fájlátvitel sikertelen');
- await api('upload/complete',{method:'POST',body:JSON.stringify({documentId:up.documentId})});
- await api('links',{method:'POST',body:JSON.stringify({topicId:topic,documentId:up.documentId,category,page: file.type==='application/pdf'?startPage:null})});await getDocs(topic);setAllDocs((await api('documents')).documents)}
+ async function upload(file:File){
+ if(!topic)throw Error('Előbb válassz témakört.');
+ if(file.size>250*1024*1024)throw Error('Legfeljebb 250 MB tölthető fel.');
+ const mime=file.type||({pdf:'application/pdf',jpg:'image/jpeg',jpeg:'image/jpeg',png:'image/png',webp:'image/webp',docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',xlsx:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',pptx:'application/vnd.openxmlformats-officedocument.presentationml.presentation'} as Record<string,string>)[file.name.split('.').pop()?.toLowerCase()||''];
+ let documentId:string;
+ if(file.size>=8*1024*1024 && mime==='application/pdf'){
+  setMessage('Nagy PDF feltöltése: előkészítés…');
+  const session=await api('multipart',{method:'POST',body:JSON.stringify({action:'start',filename:file.name,mimeType:mime,size:file.size})});
+  documentId=session.documentId;
+  const count=Math.ceil(file.size/session.partSize),parts:{ETag:string;PartNumber:number}[]=[];
+  try{
+   for(let number=1;number<=count;number++){
+    setMessage('PDF feltöltése: '+number+'/'+count+' rész');
+    const signed=await api('multipart',{method:'POST',body:JSON.stringify({action:'part',documentId,uploadId:session.uploadId,number})});
+    const chunk=file.slice((number-1)*session.partSize,Math.min(number*session.partSize,file.size));
+    const response=await fetch(signed.url,{method:'PUT',body:chunk});
+    if(!response.ok)throw Error('A PDF '+number+'. részének feltöltése sikertelen.');
+    const ETag=response.headers.get('etag');
+    if(!ETag)throw Error('Hiányzik az ETag fejléc: a privát tárhely CORS konfigurációjában az ETag-et engedélyezni kell.');
+    parts.push({PartNumber:number,ETag});
+   }
+   await api('multipart',{method:'POST',body:JSON.stringify({action:'finish',documentId,uploadId:session.uploadId,parts})});
+  }catch(e){
+   await api('multipart',{method:'POST',body:JSON.stringify({action:'abort',documentId,uploadId:session.uploadId})}).catch(()=>{});
+   throw e;
+  }
+ }else{
+  const up=await api('upload',{method:'POST',body:JSON.stringify({filename:file.name,mimeType:mime,size:file.size})});
+  documentId=up.documentId;
+  const put=await fetch(up.uploadUrl,{method:'PUT',headers:{'Content-Type':mime},body:file});
+  if(!put.ok)throw Error('Fájlátvitel sikertelen');
+  await api('upload/complete',{method:'POST',body:JSON.stringify({documentId})});
+ }
+ await api('links',{method:'POST',body:JSON.stringify({topicId:topic,documentId,category,page:mime==='application/pdf'?startPage:null})});
+ setMessage('Feltöltés sikeres');await getDocs(topic);setAllDocs((await api('documents')).documents);
+}
  async function addTool(){if(!topic)throw Error('Válassz témakört.');const label=prompt('Eszköz neve');if(!label?.trim())return;const url=prompt('HTTPS-hivatkozás');if(!url?.trim())return;await api('tools',{method:'POST',body:JSON.stringify({topicId:topic,label:label.trim(),url,provider:'egyéb'})});await getDocs(topic)}
  async function removeTool(id:string){if(!confirm('Eltávolítod a hivatkozást?'))return;await api('tools?id='+encodeURIComponent(id),{method:'DELETE'});await getDocs(topic)}
  async function unlinkDocument(d:Doc){if(!d.link_id)throw Error('Hiányzó kapcsolatazonosító');if(!confirm('Eltávolítod a dokumentumot ebből a témakörből? A központi fájl megmarad.'))return;await api('links?id='+encodeURIComponent(d.link_id),{method:'DELETE'});await getDocs(topic)}
