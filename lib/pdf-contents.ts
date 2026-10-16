@@ -13,7 +13,7 @@ export async function inspectPdf(file:File):Promise<{chapters:ProposedChapter[];
    if(clean.length<3||!Number.isInteger(page)||page<1||page>pdf.numPages)return;
    const key=clean.toLocaleLowerCase('hu')+':'+page;
    if(unique.has(key))return;
-   unique.add(key);found.push({title:clean,page,source,selected:true});
+   unique.add(key);found.push({title:clean,page,source,selected:source==='outline'});
   };
   const outline=await pdf.getOutline();
   const walk=async(items:NonNullable<typeof outline>,depth:number)=>{
@@ -49,9 +49,9 @@ export async function inspectPdf(file:File):Promise<{chapters:ProposedChapter[];
     if(!match)continue;
     const printed=Number(match[2]);
     // Never pretend printed pagination equals PDF pagination.
-    add(match[1],Math.min(pdf.numPages,Math.max(1,printed)),'contents');
+    if(printed>=1&&printed<=pdf.numPages)add(match[1],printed,'contents');
    }
   }
-  return {chapters:found,notice:found.length?'A nyomtatott tartalomjegyzékből előzetes javaslat készült. A nyomtatott oldalszám eltérhet a PDF-oldaltól: az értékeket ellenőrizni kell.':'Nem találtam megbízható tartalomjegyzéket. A könyv ettől függetlenül feltölthető, a témakörök később kézzel hozzáadhatók.'};
+  return {chapters:found,notice:found.length?'A nyomtatott tartalomjegyzék alapján oldalszámjavaslat készült. Ezek NINCSENEK kijelölve: a nyomtatott oldalszám nem feltétlenül egyezik a PDF-oldallal. Ellenőrizd és jelöld ki egyenként a helyes PDF-oldalakat.':'Nem találtam megbízható tartalomjegyzéket. A könyv ettől függetlenül feltölthető, a témakörök később kézzel hozzáadhatók.'};
  }finally{await pdf.destroy()}
 }
