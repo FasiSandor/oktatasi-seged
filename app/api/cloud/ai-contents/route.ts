@@ -26,7 +26,10 @@ export async function POST(req:NextRequest){
   const lessons=(Array.isArray(parsed.lessons)?parsed.lessons:[]).filter((x):x is Lesson=>typeof x?.title==='string'&&x.title.trim().length>=4&&x.title.length<=160&&Number.isInteger(x.printedPage)&&x.printedPage>0&&x.printedPage<5000).slice(0,150);
   const validNumbers=lessons.map(x=>x.lessonNumber).filter((n):n is number=>Number.isInteger(n)&&Number(n)>=1&&Number(n)<=999);
   const duplicated=[...new Set(validNumbers.filter((n,i)=>validNumbers.indexOf(n)!==i))].sort((a,b)=>a-b);
-  const expected=validNumbers.length>=3?Array.from({length:Math.max(...validNumbers)-Math.min(...validNumbers)+1},(_,i)=>Math.min(...validNumbers)+i):[];
+  const isMath9Part2=validNumbers.some(n=>n>=39&&n<=76)&&validNumbers.filter(n=>n>=39&&n<=76).length>=3;
+  const min=isMath9Part2?39:validNumbers.length>=3?Math.min(...validNumbers):0;
+  const max=isMath9Part2?76:validNumbers.length>=3?Math.max(...validNumbers):0;
+  const expected=min&&max?Array.from({length:max-min+1},(_,i)=>min+i):[];
   const missing=expected.filter(n=>!validNumbers.includes(n));
   return Response.json({lessons,diagnostics:{numberedCount:validNumbers.length,range:expected.length?[expected[0],expected[expected.length-1]]:null,missing,duplicated}});
  }catch(e){return apiError(e)}
