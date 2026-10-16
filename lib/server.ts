@@ -15,7 +15,7 @@ export async function ownerFromRequest(req:NextRequest):Promise<string>{
  if(!endpoint) throw new Error('NEON_AUTH_URL is missing');
  const base=endpoint.replace(/\/$/,'');
  const jwks=createRemoteJWKSet(new URL(base+'/.well-known/jwks.json'));
- const {payload}=await jwtVerify(auth.slice(7),jwks,{issuer:base,algorithms:['EdDSA','RS256','ES256'],audience:process.env.NEON_AUTH_AUDIENCE||undefined});
+ const {payload}=await jwtVerify(auth.slice(7),jwks,{issuer:new URL(base).origin,algorithms:['EdDSA','RS256','ES256'],audience:process.env.NEON_AUTH_AUDIENCE||undefined});
  if(!payload.sub)throw new Error('UNAUTHORIZED');
  return payload.sub;
 }
