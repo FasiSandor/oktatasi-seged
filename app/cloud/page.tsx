@@ -28,34 +28,21 @@ export default function Cloud(){
  if(file.size>250*1024*1024)throw Error('Legfeljebb 250 MB tölthető fel.');
  const mime=file.type||({pdf:'application/pdf',jpg:'image/jpeg',jpeg:'image/jpeg',png:'image/png',webp:'image/webp',docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',xlsx:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',pptx:'application/vnd.openxmlformats-officedocument.presentationml.presentation'} as Record<string,string>)[file.name.split('.').pop()?.toLowerCase()||''];
  let documentId:string;
- if(file.size>=8*1024*1024 && mime==='application/pdf'){
-  setMessage('Nagy PDF feltöltése: előkészítés…');
-  const session=await api('multipart',{method:'POST',body:JSON.stringify({action:'start',filename:file.name,mimeType:mime,size:file.size})});
-  documentId=session.documentId;
-  const count=Math.ceil(file.size/session.partSize),parts:{ETag:string;PartNumber:number}[]=[];
-  try{
-   for(let number=1;number<=count;number++){
-    setMessage('PDF feltöltése: '+number+'/'+count+' rész');
-    const signed=await api('multipart',{method:'POST',body:JSON.stringify({action:'part',documentId,uploadId:session.uploadId,number})});
-    const chunk=file.slice((number-1)*session.partSize,Math.min(number*session.partSize,file.size));
-    const response=await fetch(signed.url,{method:'PUT',body:chunk});
-    if(!response.ok)throw Error('A PDF '+number+'. részének feltöltése sikertelen.');
-    const ETag=response.headers.get('etag');
-    if(!ETag)throw Error('Hiányzik az ETag fejléc: a privát tárhely CORS konfigurációjában az ETag-et engedélyezni kell.');
-    parts.push({PartNumber:number,ETag});
-   }
-   await api('multipart',{method:'POST',body:JSON.stringify({action:'finish',documentId,uploadId:session.uploadId,parts})});
-  }catch(e){
-   await api('multipart',{method:'POST',body:JSON.stringify({action:'abort',documentId,uploadId:session.uploadId})}).catch(()=>{});
-   throw e;
-  }
- }else{
+ // Direct-to-storage presigned PUT works for both small and large original files.
+ // The browser sends bytes to Neon Storage without routing them through Vercel.
+ {
+  setUploadStatus('Feltöltési hivatkozás előkészítése…');
   const up=await api('upload',{method:'POST',body:JSON.stringify({filename:file.name,mimeType:mime,size:file.size})});
   documentId=up.documentId;
-  const put=await fetch(up.uploadUrl,{method:'PUT',headers:{'Content-Type':mime},body:file});
-  if(!put.ok)throw Error('Fájlátvitel sikertelen');
+  setUploadStatus('PDF átvitele közvetlenül a privát tárhelyre…');
+  let put:Response;
+  try{put=await fetch(up.uploadUrl,{method:'PUT',headers:{'Content-Type':mime},body:file})}
+  catch{throw Error('Nem sikerült elérni a privát tárhelyet. Lehetséges hálózati vagy CORS-hiba.')}
+  if(!put.ok)throw Error('A tárhely elutasította a feltöltést (HTTP '+put.status+').');
+  setUploadStatus('Feltöltött fájl ellenőrzése…');
   await api('upload/complete',{method:'POST',body:JSON.stringify({documentId})});
  }
+
  if(topic){await api('links',{method:'POST',body:JSON.stringify({topicId:topic,documentId,category,page:mime==='application/pdf'?startPage:null})});await getDocs(topic)}
  setMessage('A könyv feltöltve. Válassz témakört, és rendeld hozzá a megfelelő PDF-oldalt.');setAllDocs((await api('documents')).documents);return documentId;
 }
