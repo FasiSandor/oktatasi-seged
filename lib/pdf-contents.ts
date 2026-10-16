@@ -77,7 +77,7 @@ export async function inspectPdf(file:File):Promise<{chapters:ProposedChapter[];
      if(pageNumber!==null&&title.length>=4&&pageNumber<=pdf.numPages){
       const cleaned=(wrapped?wrapped+' ':'')+title;
       const safe=cleaned.replace(/^\s*(?:\d{1,3}|R)\s+/, '').replace(/\s+/g,' ').trim();
-      if(safe.length>=4)candidates.push({title:safe,printed:pageNumber});
+      if(safe.length>=4&&!/^A tankönyv témakörei$/i.test(safe)&&!/^A feladatok végeredményei$/i.test(safe))candidates.push({title:safe,printed:pageNumber});
       wrapped='';
      }else if(pageNumber!==null&&wrapped&&pageNumber<=pdf.numPages){
       candidates.push({title:wrapped,printed:pageNumber});wrapped='';
