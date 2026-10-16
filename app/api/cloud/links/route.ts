@@ -1,0 +1,32 @@
+import {NextRequest} from 'next/server';
+import {database,ownerFromRequest,apiError} from '../../../../lib/server';
+export const runtime='nodejs';
+const valid=(x:unknown):x is string=>typeof x==='string'&&/^[0-9a-f-]{36}$/i.test(x);
+export async function POST(request:NextRequest){
+ try{
+  const owner=await ownerFromRequest(request),b=await request.json();
+  if(!valid(b.topicId)||!valid(b.documentId)||b.page!=null&&(!Number.isInteger(b.page)||b.page<1))throw Error('INVALID');
+  const category=typeof b.category==='string'&&['reference','exercise','worksheet','solution','notes','table'].includes(b.category)?b.category:'reference';
+  const sql=database();
+  const rows=await sql`
+   INSERT INTO os_document_links(owner_id,topic_id,document_id,category,pdf_page,position)
+   SELECT ${owner},t.id,d.id,${category},${b.page??null},
+    COALESCE((SELECT max(l.position)+1 FROM os_document_links l WHERE l.topic_id=t.id AND l.owner_id=${owner}),0)
+   FROM os_topics t JOIN os_subjects s ON s.id=t.subject_id AND s.owner_id=${owner}
+    JOIN os_documents d ON d.id=${b.documentId} AND d.owner_id=${owner} AND d.state='ready'
+   WHERE t.id=${b.topicId} AND t.owner_id=${owner}
+   ON CONFLICT(topic_id,document_id,category) DO UPDATE SET pdf_page=excluded.pdf_page
+   RETURNING id,topic_id,document_id,category,pdf_page,position`;
+  if(!rows.length)throw Error('FORBIDDEN');
+  return Response.json({link:rows[0]},{status:201});
+ }catch(e){return apiError(e)}
+}
+export async function DELETE(request:NextRequest){
+ try{
+ const owner=await ownerFromRequest(request),id=request.nextUrl.searchParams.get('id');if(!valid(id))throw Error('INVALID');
+ const sql=database();
+ const deleted=await sql`DELETE FROM os_document_links WHERE id=${id} AND owner_id=${owner} RETURNING id`;
+ if(!deleted.length)throw Error('FORBIDDEN');
+ return Response.json({unlinked:true});
+ }catch(e){return apiError(e)}
+}
