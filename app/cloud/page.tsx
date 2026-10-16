@@ -36,7 +36,19 @@ export default function Cloud(){
     setUploadStatus('Feltöltés: '+pct+'% ('+Math.round(event.loaded/1048576)+' / '+Math.round(event.total/1048576)+' MB)');
    }
   };
-  xhr.onload=()=>xhr.status>=200&&xhr.status<300?resolve():reject(new Error('A tárhely elutasította a feltöltést (HTTP '+xhr.status+').'));
+  xhr.onload=()=>{
+   if(xhr.status>=200&&xhr.status<300){resolve();return}
+   // Read only the S3 error code: never show signed URLs, keys, or request signatures.
+   const code=xhr.responseText.match(/<Code>([A-Za-z0-9_-]{2,80})<\/Code>/)?.[1]||'UNKNOWN';
+   const hint:Record<string,string>={
+    SignatureDoesNotMatch:'A feltöltési URL aláírása nem egyezik a kéréssel. Ellenőrizendő az S3-régió, a Content-Type és az aláírás.',
+    InvalidAccessKeyId:'A Neon Storage hozzáférési azonosítója érvénytelen.',
+    AccessDenied:'A tárhely-hitelesítés jogosultsága nem megfelelő, vagy az aláírás nem elfogadható.',
+    RequestTimeTooSkewed:'Az időeltérés miatt a tárhely elutasította a kérést.',
+    ExpiredToken:'A feltöltési hivatkozás hitelesítése lejárt.'
+   };
+   reject(new Error('Tárhely HTTP '+xhr.status+' – '+code+'. '+(hint[code]||'A tárhely visszautasította a kérést.')));
+  };
   xhr.onerror=()=>reject(new Error('Nem sikerült elérni a privát tárhelyet. Lehetséges hálózati vagy CORS-hiba.'));
   xhr.ontimeout=()=>reject(new Error('A fájl feltöltése időtúllépés miatt megszakadt.'));
   xhr.send(file);
