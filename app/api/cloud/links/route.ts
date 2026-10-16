@@ -1,7 +1,7 @@
 import {NextRequest} from 'next/server';
 import {database,ownerFromRequest,apiError} from '../../../../lib/server';
 export const runtime='nodejs';
-const valid=(x:unknown):x is string=>typeof x==='string'&&/^[0-9a-f-]{36}$/i.test(x);
+const valid=(x:unknown):x is string=>typeof x==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(x);
 export async function POST(request:NextRequest){
  try{
   const owner=await ownerFromRequest(request),b=await request.json();
