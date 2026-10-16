@@ -15,7 +15,8 @@
     "@neondatabase/serverless": "1.0.2",
     "jose": "6.1.0",
     "@aws-sdk/client-s3": "3.916.0",
-    "@aws-sdk/s3-request-presigner": "3.916.0"
+    "@aws-sdk/s3-request-presigner": "3.916.0",
+    "@neondatabase/auth": "0.2.0"
   },
   "devDependencies": {
     "typescript": "5.9.3",
