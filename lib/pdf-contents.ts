@@ -32,26 +32,50 @@ export async function inspectPdf(file:File):Promise<{chapters:ProposedChapter[];
   };
   if(outline?.length)await walk(outline,0);
   if(found.length)return {chapters:found.sort((a,b)=>a.page-b.page),notice:'PDF-könyvjelzőkből felismert fejezetek. Ellenőrizd a címeket és PDF-oldalakat.'};
-  // Fallback: extract lines resembling a printed contents list from the first pages.
-  // Printed page numbers can differ from actual PDF page indices: these remain suggestions.
-  const limit=Math.min(pdf.numPages,16);
-  for(let i=1;i<=limit&&found.length<90;i++){
+  // Fallback: inspect pages headed TARTALOM, not arbitrary textbook body text.
+  // A printed page number is NOT a PDF page index. Calibrate using the TOC page's own label.
+  const limit=Math.min(pdf.numPages,20);
+  let offset:number|null=null;
+  for(let i=1;i<=limit&&found.length<120;i++){
    const page=await pdf.getPage(i);const content=await page.getTextContent();
-   const lines=new Map<number,string[]>();
-   for(const part of content.items){
-    if(!('str'in part)||!part.str?.trim()||!('transform'in part))continue;
-    const y=Math.round(part.transform[5]/4)*4;
-    lines.set(y,[...(lines.get(y)||[]),part.str]);
+   const items=content.items.filter((part):part is typeof part & {str:string;transform:number[]} => 'str'in part&&typeof part.str==='string'&&'transform'in part);
+   const preview=items.slice(0,15).map(x=>x.str.trim()).filter(Boolean);
+   const heading=preview.some(x=>/^TARTALOM(?:JEGYZÉK)?$/i.test(x));
+   if(!heading)continue;
+   if(offset===null){
+    const headingIndex=preview.findIndex(x=>/^TARTALOM(?:JEGYZÉK)?$/i.test(x));
+    const printedLabel=preview.slice(headingIndex+1,headingIndex+4).find(x=>/^\d{1,3}$/.test(x));
+    if(printedLabel){const candidate=(i-Number(printedLabel));if(candidate>=-25&&candidate<=30)offset=candidate}
    }
-   for(const line of lines.values()){
-    const text=line.join(' ').replace(/\s+/g,' ').trim();
-    const match=text.match(/^(.{5,115}?)(?:\s*\.{2,}\s*|\s{2,})(\d{1,4})\s*$/);
-    if(!match)continue;
-    const printed=Number(match[2]);
-    // Never pretend printed pagination equals PDF pagination.
-    if(printed>=1&&printed<=pdf.numPages)add(match[1],printed,'contents');
+   const lines=new Map<number,{x:number;text:string}[]>();
+   for(const part of items){
+    if(!part.str.trim())continue;
+    const y=Math.round(part.transform[5]/3)*3;
+    const line=lines.get(y)||[];line.push({x:part.transform[4],text:part.str});lines.set(y,line);
+   }
+   const ordered=[...lines.entries()].sort((a,b)=>b[0]-a[0]);
+   let pendingTitle='';
+   for(const [,parts] of ordered){
+    const line=parts.sort((a,b)=>a.x-b.x).map(x=>x.text).join(' ').replace(/\s+/g,' ').trim();
+    if(!line||/^TARTALOM(?:JEGYZÉK)?$/i.test(line))continue;
+    // Dot leaders can be printed as spaced dots: ". . . . .".
+    const match=line.match(/^(.{5,135}?)(?:\s*(?:\.\s*){3,}|\s{3,})(\d{1,4})\s*$/);
+    if(match){
+     const printed=Number(match[2]);
+     const pdfPage=offset===null?0:printed+offset;
+     if(pdfPage>=1&&pdfPage<=pdf.numPages)add(match[1].replace(/^\s*\d{1,3}\.\s*/,''),pdfPage,'contents');
+     pendingTitle='';continue;
+    }
+    // Some PDF generators put the title and page number on separate text rows.
+    if(/^\d{1,4}$/.test(line)&&pendingTitle){
+     const printed=Number(line),pdfPage=offset===null?0:printed+offset;
+     if(pdfPage>=1&&pdfPage<=pdf.numPages)add(pendingTitle,pdfPage,'contents');
+     pendingTitle='';continue;
+    }
+    if(/(?:\.\s*){4,}/.test(line))pendingTitle=line.replace(/(?:\.\s*){3,}.*$/,'').replace(/^\s*\d{1,3}\.\s*/,'').trim();
+    else if(line.length>70)pendingTitle='';
    }
   }
-  return {chapters:found,notice:found.length?'A nyomtatott tartalomjegyzék alapján oldalszámjavaslat készült. Ezek NINCSENEK kijelölve: a nyomtatott oldalszám nem feltétlenül egyezik a PDF-oldallal. Ellenőrizd és jelöld ki egyenként a helyes PDF-oldalakat.':'Nem találtam megbízható tartalomjegyzéket. A könyv ettől függetlenül feltölthető, a témakörök később kézzel hozzáadhatók.'};
+  return {chapters:found,notice:found.length?'A tartalomjegyzék fejezeteit és a PDF-oldalakra számított hivatkozásokat megtaláltam. A javaslatok nincsenek kijelölve; ellenőrizd és hagyd jóvá őket.':'Nem találtam megbízható tartalomjegyzéket. A könyv ettől függetlenül feltölthető, a témakörök később kézzel hozzáadhatók.'};
  }finally{await pdf.destroy()}
 }
