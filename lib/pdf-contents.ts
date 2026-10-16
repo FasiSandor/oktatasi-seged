@@ -34,13 +34,23 @@ export async function inspectPdf(file:File):Promise<{chapters:ProposedChapter[];
   if(found.length)return {chapters:found.sort((a,b)=>a.page-b.page),notice:'PDF-könyvjelzőkből felismert fejezetek. Ellenőrizd a címeket és PDF-oldalakat.'};
   // Fallback: inspect pages headed TARTALOM, not arbitrary textbook body text.
   // A printed page number is NOT a PDF page index. Calibrate using the TOC page's own label.
-  const limit=Math.min(pdf.numPages,20);
+  const candidatePages=[...new Set([...Array.from({length:Math.min(pdf.numPages,20)},(_,i)=>i+1),...Array.from({length:Math.min(pdf.numPages,14)},(_,i)=>pdf.numPages-i)])];
+  // Printed pages can be offset by cover and copyright pages.
+  // Infer it only from a clearly identifiable numbered page footer.
   let offset:number|null=null;
-  for(let i=1;i<=limit&&found.length<120;i++){
+  for(const index of [5,6,7,8,9]){
+   if(index>pdf.numPages)break;
+   const p=await pdf.getPage(index);const c=await p.getTextContent();
+   const footer=c.items.filter(t=>'str' in t&&'transform' in t&&t.transform[5]<85&&/^\\d{1,3}$/.test(t.str.trim()));
+   const labels=footer.map(t=>Number(('str'in t?t.str:'').trim())).filter(n=>n>=1&&n<index);
+   if(labels.length===1){offset=index-labels[0];break}
+  }
+  for(const i of candidatePages){
+   if(found.length>=120)break;
    const page=await pdf.getPage(i);const content=await page.getTextContent();
    const items=content.items.filter((part):part is typeof part & {str:string;transform:number[]} => 'str'in part&&typeof part.str==='string'&&'transform'in part);
    const preview=items.slice(0,15).map(x=>x.str.trim()).filter(Boolean);
-   const heading=preview.some(x=>/^TARTALOM(?:JEGYZÉK)?$/i.test(x));
+   const heading=preview.some(x=>/^TARTALOM(?:JEGYZÉK)?$/i.test(x))||items.some(x=>/^TARTALOM(?:JEGYZÉK)?$/i.test(x.str.trim()));
    if(!heading)continue;
    if(offset===null){
     const headingIndex=preview.findIndex(x=>/^TARTALOM(?:JEGYZÉK)?$/i.test(x));
@@ -55,6 +65,7 @@ export async function inspectPdf(file:File):Promise<{chapters:ProposedChapter[];
    }
    const ordered=[...lines.entries()].sort((a,b)=>b[0]-a[0]);
    let pendingTitle='';
+   let previousLine='';
    for(const [,parts] of ordered){
     const line=parts.sort((a,b)=>a.x-b.x).map(x=>x.text).join(' ').replace(/\s+/g,' ').trim();
     if(!line||/^TARTALOM(?:JEGYZÉK)?$/i.test(line))continue;
@@ -69,7 +80,7 @@ export async function inspectPdf(file:File):Promise<{chapters:ProposedChapter[];
     // Some PDF generators put the title and page number on separate text rows.
     if(/^\d{1,4}$/.test(line)&&pendingTitle){
      const printed=Number(line),pdfPage=offset===null?0:printed+offset;
-     if(pdfPage>=1&&pdfPage<=pdf.numPages)add(pendingTitle,pdfPage,'contents');
+     if(pdfPage>=1&&pdfPage<=pdf.numPages)add(pendingTitle||previousLine,pdfPage,'contents');
      pendingTitle='';continue;
     }
     if(/(?:\.\s*){4,}/.test(line))pendingTitle=line.replace(/(?:\.\s*){3,}.*$/,'').replace(/^\s*\d{1,3}\.\s*/,'').trim();
