@@ -9,9 +9,9 @@
     "check": "tsc --noEmit"
   },
   "dependencies": {
-    "next": "15.5.6",
-    "react": "19.1.1",
-    "react-dom": "19.1.1",
+    "next": "15.5.27",
+    "react": "19.1.7",
+    "react-dom": "19.1.7",
     "@neondatabase/serverless": "1.0.2",
     "jose": "6.1.0",
     "@aws-sdk/client-s3": "3.916.0",
