@@ -3,6 +3,13 @@
 const host=process.env.SMOKE_BASE_URL||'http://127.0.0.1:3000';
 const cases=[
  ['GET','/api/cloud/subjects'],
+ ['GET','/api/cloud/curriculum?subjectId=00000000-0000-4000-8000-000000000000'],
+ ['GET','/api/cloud/curriculum/blueprint'],
+ ['GET','/api/cloud/curriculum/placements?profileId=00000000-0000-4000-8000-000000000000'],
+ ['POST','/api/cloud/curriculum'],
+ ['POST','/api/cloud/curriculum/import'],
+ ['POST','/api/cloud/curriculum/placements'],
+ ['DELETE','/api/cloud/curriculum/placements?id=00000000-0000-4000-8000-000000000000'],
  ['GET','/api/cloud/topics?subjectId=00000000-0000-4000-8000-000000000000'],
  ['GET','/api/cloud/documents'],
  ['GET','/api/cloud/search?q=book'],
