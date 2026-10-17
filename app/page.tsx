@@ -12,7 +12,7 @@ export default function Home(){
  const [active,setActive]=useState<string|null>(null);
  const [maximized,setMaximized]=useState(false);
  const [opened,setOpened]=useState<string[]>([]);
- const selected=tiles.find(t=>t.id===active);
+ const selected=tiles.find(t=>t.id===active)||tiles.find(t=>t.id===opened[0]);
  useEffect(()=>{if(!active)return;function key(e:KeyboardEvent){if(e.key==='Escape'){setActive(null);setMaximized(false)}}window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key)},[active]);
  function open(id:string){setOpened(current=>current.includes(id)?current:[...current,id]);setActive(id);setMaximized(false)}
  function close(){setOpened(current=>current.filter(x=>x!==active));setActive(null);setMaximized(false)}
@@ -30,7 +30,7 @@ export default function Home(){
    </button>)}</div>
   {opened.length>0&&<nav className="os-opened-tray" aria-label="Megnyitott munkakártyák"><span className="os-tray-label">Megnyitva:</span>{opened.map(id=>{const t=tiles.find(tile=>tile.id===id);return t?<span key={id} className="os-tray-pill"><button type="button" onClick={()=>{setActive(id);setMaximized(false)}}>{t.icon} {t.title}</button><button type="button" className="os-tray-x" aria-label={t.title+' bezárása'} onClick={()=>dismiss(id)}>×</button></span>:null})}</nav>}
   <footer className="os-footer">A munkafelület kártyás megjelenése fejlesztés alatt áll; a meglévő könyvtár és tananyagfa külön is megnyitható.</footer>
-  {selected&&<div className="os-overlay" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget)close()}}>
+  {selected&&<div className="os-overlay" style={{display:active?undefined:"none"}} role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget)close()}}>
     <section className={'os-floating '+(maximized?'is-full':'')} role="dialog" aria-modal="true" aria-label={selected.title}>
       <div className="os-dialog-bar"><div className="os-dialog-title"><span className="os-dialog-icon">{selected.icon}</span><div><strong>{selected.title}</strong><small>{selected.subtitle}</small></div></div><div className="os-dialog-actions"><button onClick={minimize} aria-label="Kártya háttérbe helyezése" title="Kártya háttérbe helyezése">— <span>Háttérbe</span></button><button onClick={()=>setMaximized(v=>!v)} aria-label={maximized?'Vissza a kártyanézethez':'Teljes képernyő'} title={maximized?'Kártyanézet':'Teljes képernyő'}>{maximized?'❐':'⛶'} <span>{maximized?'Kártyanézet':'Teljes képernyő'}</span></button><button className="os-close" onClick={close} aria-label="Bezárás">✕</button></div></div>
       <div className="os-dialog-body">{opened.filter(id=>tiles.some(t=>t.id===id)).map(id=>{const t=tiles.find(tile=>tile.id===id)!;return <div key={id} style={{display:active===id?'block':'none',height:'100%'}}>{t.url?<iframe title={t.title} src={t.url}/>:<div className="os-tools"><h3>Hasznos matematikai eszközök</h3><p>Ezek külön böngészőlapon nyílnak meg; az Oktatási Segéd nyitva marad.</p><a href="https://www.geogebra.org/" target="_blank" rel="noopener noreferrer">GeoGebra ↗</a><a href="https://www.desmos.com/calculator" target="_blank" rel="noopener noreferrer">Desmos grafikus számológép ↗</a><a href="https://www.wolframalpha.com/" target="_blank" rel="noopener noreferrer">WolframAlpha ↗</a><a href="/cloud" >Saját tananyagokhoz kapcsolt eszközök →</a></div>}</div>})}</div>
