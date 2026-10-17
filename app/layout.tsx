@@ -24,6 +24,19 @@ export default function RootLayout({children}:{children:ReactNode}){return <html
  .academy-content button:active:not(:disabled){transform:scale(.985)}
  .academy-content :focus-visible{outline:3px solid #60a5fa;outline-offset:2px}
  @media(max-width:680px){.academy-rail{width:65px;padding:10px 3px}.academy-logo{width:48px;height:48px;font-size:29px}.academy-nav-link,.academy-rail-bottom a{font-size:9px}.academy-nav-icon{font-size:22px}.academy-content{margin-left:65px}}
+
+ .academy-curriculum{padding-right:385px!important}
+ .academy-playlist{position:fixed;right:16px;top:16px;bottom:16px;width:350px;background:white;border:1px solid #e0e8f4;border-radius:20px;box-shadow:0 10px 40px #24436b14;display:flex;flex-direction:column;overflow:hidden;z-index:20}
+ .academy-playlist-head{padding:22px 18px 15px;display:flex;flex-direction:column;gap:5px;border-bottom:1px solid #e7edf6}.academy-playlist-head strong{font-size:20px}.academy-playlist-head small{color:#64748b}
+ .academy-playlist-scroll{overflow-y:auto;padding:10px;overscroll-behavior:contain}
+ .academy-playlist-item{width:100%;display:flex;align-items:center;gap:10px;padding:9px 7px;border:0;border-radius:12px;text-align:left;background:transparent;color:#1d2e48;cursor:pointer}
+ .academy-playlist-item:hover{background:#eef5ff}.academy-playlist-item.is-selected{background:#dceaff;color:#0759e6}
+ .academy-playlist-number{width:20px;text-align:center;color:#7890ae;font-size:12px}
+ .academy-playlist-thumb{width:68px;height:48px;border-radius:9px;display:grid;place-items:center;flex-shrink:0;background:linear-gradient(135deg,#dcecff,#a7ceff);color:#125cff;font-size:25px}
+ .academy-playlist-item:nth-child(3n+2) .academy-playlist-thumb{background:linear-gradient(135deg,#d5f9ec,#8ddac2);color:#0a9270}
+ .academy-playlist-item:nth-child(3n+3) .academy-playlist-thumb{background:linear-gradient(135deg,#f2e7ff,#d5c1ff);color:#7651c2}
+ .academy-playlist-copy{min-width:0;flex:1;display:flex;flex-direction:column;gap:5px}.academy-playlist-copy b{font-size:12px;line-height:1.4}.academy-playlist-copy small{font-size:11px;color:#71839c}.academy-playlist-dots{color:#8393ac}
+ @media(max-width:1050px){.academy-curriculum{padding-right:20px!important}.academy-playlist{position:relative;right:auto;top:auto;bottom:auto;width:100%;margin-top:20px;max-height:460px}}
  @media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
  `}</style>
  </body></html>}
