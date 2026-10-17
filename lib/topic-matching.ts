@@ -1,5 +1,11 @@
+const synonymRules:[RegExp,string][]=[
+ [/\bpermutaciok\b/g,'permutacio'],[/\bvariaciok\b/g,'variacio'],[/\bkombinaciok\b/g,'kombinacio'],
+ [/\bismetleses\b/g,'ismetlessel'],[/\bismetles nelkuli\b/g,'ismetles nelkul'],
+ [/\bfuggvenyek\b/g,'fuggveny'],[/\bharomszogek\b/g,'haromszog'],
+ [/\bpitagorasz tetele\b/g,'pitagorasz'],[/\bpitagorasz tetel\b/g,'pitagorasz'],
+];
 export function topicKey(value:string):string{
- return value.toLocaleLowerCase('hu').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\b(\d+\.?\s*(fejezet|lecke|temakor)|fejezet|lecke|temakor|bevezetes|alapjai)\b/g,' ').replace(/[^a-z0-9]+/g,' ').trim().replace(/\s+/g,' ');
+ let k=value.toLocaleLowerCase('hu').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\b(\d+\.?\s*(fejezet|lecke|temakor)|fejezet|lecke|temakor|bevezetes|alapjai)\b/g,' ').replace(/[^a-z0-9]+/g,' ').trim().replace(/\s+/g,' ');for(const [from,to] of synonymRules)k=k.replace(from,to);return k;
 }
 export function topicSimilarity(a:string,b:string):number{
  const aa=topicKey(a),bb=topicKey(b);if(!aa||!bb)return 0;if(aa===bb)return 1;
