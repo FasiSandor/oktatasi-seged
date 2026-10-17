@@ -12,13 +12,12 @@ export default function Home(){
  const [active,setActive]=useState<string|null>(null);
  const [maximized,setMaximized]=useState(false);
  const [opened,setOpened]=useState<string[]>([]);
- const [history,setHistory]=useState<string[]>([]);
  const selected=tiles.find(t=>t.id===active)||tiles.find(t=>t.id===opened[0]);
  useEffect(()=>{if(!active)return;function key(e:KeyboardEvent){if(e.key==='Escape'){setActive(null);setMaximized(false)}}window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key)},[active]);
- function open(id:string){setOpened(current=>current.includes(id)?current:[...current,id]);setHistory(current=>[...current.filter(x=>x!==id),id]);setActive(id);setMaximized(false)}
- function close(){if(!active)return;const rest=opened.filter(x=>x!==active);setOpened(rest);setHistory(current=>current.filter(x=>x!==active));setActive(rest.at(-1)||null);setMaximized(false)}
+ function open(id:string){setOpened(current=>current.includes(id)?current:[...current,id]);setActive(id);setMaximized(false)}
+ function close(){if(!active)return;const rest=opened.filter(x=>x!==active);setOpened(rest);setActive(rest.at(-1)||null);setMaximized(false)}
  function minimize(){setActive(null);setMaximized(false)}
- function dismiss(id:string){const rest=opened.filter(x=>x!==id);setOpened(rest);setHistory(current=>current.filter(x=>x!==id));if(active===id){setActive(rest.at(-1)||null);setMaximized(false)}}
+ function dismiss(id:string){const rest=opened.filter(x=>x!==id);setOpened(rest);if(active===id){setActive(rest.at(-1)||null);setMaximized(false)}}
  return <main className="os-workspace">
   <div className="os-halo" aria-hidden="true"/>
   <header className="os-header"><div className="os-brand"><span className="os-logo">◧</span><div><h1>Oktatási Segéd</h1><p>Digitális tanári munkafelület</p></div></div><div className="os-header-links"><a href="/cloud">Felhős könyvtár ↗</a><span className="os-state">Fejlesztési Preview</span></div></header>
