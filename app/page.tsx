@@ -18,6 +18,9 @@ export default function Home(){
  const [size,setSize]=useState({w:1040,h:740});
  const drag=useState<{x:number;y:number;left:number;top:number}|null>(null);
  const [dragOrigin,setDragOrigin]=drag;
+ const [restored,setRestored]=useState(false);
+ useEffect(()=>{try{const raw=window.localStorage.getItem('os-workspace-v1');if(raw){const saved=JSON.parse(raw);if(Array.isArray(saved.opened))setOpened(saved.opened.filter((id:unknown)=>typeof id==='string'&&tiles.some(t=>t.id===id)));if(saved.size&&Number.isFinite(saved.size.w)&&Number.isFinite(saved.size.h))setSize({w:Math.max(420,Math.min(1600,saved.size.w)),h:Math.max(360,Math.min(1100,saved.size.h))});if(saved.position&&Number.isFinite(saved.position.x)&&Number.isFinite(saved.position.y))setPosition({x:saved.position.x,y:saved.position.y})}}catch{}setRestored(true)},[]);
+ useEffect(()=>{if(!restored)return;try{window.localStorage.setItem('os-workspace-v1',JSON.stringify({opened,size,position}))}catch{}},[restored,opened,size,position]);
  const selected=tiles.find(t=>t.id===active)||tiles.find(t=>t.id===opened[0]);
  useEffect(()=>{if(!active)return;function key(e:KeyboardEvent){if(e.key==='Escape'){setActive(null);setMaximized(false)}}window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key)},[active]);
  function beginDrag(e:React.PointerEvent<HTMLDivElement>){if(maximized||split||(e.target as HTMLElement).closest('button'))return;e.preventDefault();e.currentTarget.setPointerCapture(e.pointerId);setDragOrigin({x:e.clientX,y:e.clientY,left:position.x,top:position.y})}
