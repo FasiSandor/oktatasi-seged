@@ -5,6 +5,7 @@ const cases=[
  ['GET','/api/cloud/subjects'],
  ['GET','/api/cloud/curriculum?subjectId=00000000-0000-4000-8000-000000000000'],
  ['GET','/api/cloud/curriculum/blueprint'],
+ ['GET','/api/cloud/curriculum/readiness'],
  ['GET','/api/cloud/curriculum/placements?profileId=00000000-0000-4000-8000-000000000000'],
  ['POST','/api/cloud/curriculum'],
  ['POST','/api/cloud/curriculum/import'],
