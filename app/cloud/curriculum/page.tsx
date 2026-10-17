@@ -11,6 +11,7 @@ export default function Curriculum(){
  const [query,setQuery]=useState('');
  const [expanded,setExpanded]=useState<Record<string,boolean>>({});
  const [error,setError]=useState('');
+ const [schemaReady,setSchemaReady]=useState<boolean|null>(null);
  const [selected,setSelected]=useState<string|null>(null);
  const [importMessage,setImportMessage]=useState('');
  const [importing,setImporting]=useState(false);
@@ -31,7 +32,7 @@ export default function Curriculum(){
  useEffect(()=>{let alive=true;
   (async()=>{try{const token=await authenticatedJWT();const response=await fetch('/api/cloud/curriculum/blueprint',{headers:{Authorization:'Bearer '+token}});
    if(!response.ok)throw new Error(response.status===401?'Jelentkezz be a felhős könyvtárba.':'A tananyagfa nem tölthető be.');
-   const data=await response.json();if(alive){setBlueprint(data.blueprint);void loadSavedTopics();}
+   const data=await response.json();if(alive){setBlueprint(data.blueprint);void loadSavedTopics();const schema=await fetch('/api/cloud/curriculum/readiness',{headers:{Authorization:'Bearer '+token}});if(schema.ok){const status=await schema.json();if(alive)setSchemaReady(Boolean(status.ready))}}
   }catch(e){if(alive)setError(e instanceof Error?e.message:'Betöltési hiba')}})();return()=>{alive=false};
  },[]);
  const filtered=useMemo(()=>blueprint?.topics.filter(g=>(!query.trim()||g.name.toLocaleLowerCase('hu').includes(query.toLocaleLowerCase('hu'))||g.lessons.some(l=>l.toLocaleLowerCase('hu').includes(query.toLocaleLowerCase('hu'))))&&(!gradeFilter||g.lessons.some(l=>placements.some(p=>p.topic_id===topicIds[g.name+'::'+l]&&p.grade===gradeFilter))))||[],[blueprint,query,gradeFilter,placements,topicIds]);
@@ -60,6 +61,7 @@ export default function Curriculum(){
    <h1 style={{fontSize:'clamp(24px,4vw,34px)',marginBottom:5}}>Matematika – központi tananyagfa</h1>
    <p style={{color:'#9CA9C0'}}>Technikum · 9–12. évfolyam · NAT-alapú munkaváltozat</p>
    <section style={{...panel,marginBottom:18}}><button onClick={()=>void importTree()} disabled={importing||!blueprint} style={{padding:'12px 16px',background:'#2563eb',border:'1px solid #60A5FA',borderRadius:10,color:'#fff',fontWeight:700,cursor:'pointer'}}> {importing?'Mentés…':'Tananyagfa mentése a saját könyvtáramba'} </button> <button onClick={()=>void loadSavedTopics()} style={{padding:'10px 12px',background:'#172033',border:'1px solid #2A3445',borderRadius:10,color:'#9fd7ff',cursor:'pointer'}}>Mentett források frissítése</button>{importMessage&&<p role='status' style={{color:'#c3d8ff'}}>{importMessage}</p>}</section>
+   {schemaReady===false&&<section role='status' style={{...panel,marginBottom:18,borderColor:'#F59E0B'}}><strong style={{color:'#F59E0B'}}>Az évfolyamos tanmenet mentése még nem elérhető.</strong><p>A Neon tananyagfa-migrációja még hiányzik. A leckék böngészhetők, de az évfolyamos mentést a migráció telepítése után lehet használni.</p></section>}
    <section style={{...panel,marginBottom:18,background:'#142338'}}>
     <strong style={{color:'#60A5FA'}}>Fontos: ellenőrzés alatt</strong>
     <p style={{marginBottom:0,lineHeight:1.55}}>A fő témacsoportokhoz készített leckeindex még javaslat. A pontos évfolyamos bontást és óraszámokat a kerettanterv és érettségi követelmények alapján külön ellenőrizni kell. Az itt látható témák nem jelentenek jóváhagyott, kötelező tanmenetet. Ez a nézet nem módosít könyveket vagy adatbázist.</p>
