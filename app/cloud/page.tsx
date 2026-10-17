@@ -196,7 +196,7 @@ async function upload(file:File):Promise<string>{
   const saved=new Map(existing.map(t=>[t.name.trim().toLocaleLowerCase('hu')+'|'+(t.parent_id||''),t.id]));
   const parents=new Map<string,string>();
   for(const [index,chapter] of suggestions.entries()){
-   if(!chapter.selected)continue;
+   if(!chapter.selected||isCentralMath)continue;
    const group=(chapterNames[index]||'').trim().slice(0,120);
    if(!group)continue;
    const key=group.toLocaleLowerCase('hu');
