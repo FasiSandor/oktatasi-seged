@@ -1,0 +1,26 @@
+name: Windows desktop checks (no deploy)
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [develop/library-foundation]
+    paths:
+      - 'app/**'
+      - 'package*.json'
+      - 'tsconfig.json'
+      - '.github/workflows/windows-desktop-check.yml'
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Upgrade npm installer
+        run: npm install -g npm@11
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps --no-audit --no-fund
+      - run: npm run check
+      - run: npm run build
+        env:
+          CI: 'true'
