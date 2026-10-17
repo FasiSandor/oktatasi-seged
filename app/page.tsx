@@ -6,7 +6,7 @@ const tiles:Tile[]=[
  {id:'curriculum',title:'Tananyagfa',subtitle:'Technikum · Matematika 9–12',icon:'◈',preview:'Témakörök, leckék, évfolyamok',url:'/cloud/curriculum',items:['Halmazok és logika','Kombinatorika','Algebra és függvények','Geometria']},
  {id:'library',title:'Könyvtár',subtitle:'Saját tankönyvek és feladatgyűjtemények',icon:'▣',preview:'Privát felhős források',url:'/cloud',items:['Feltöltött könyvek','PDF-tartalomjegyzék','Oldalhoz kapcsolás','AI-felismerés']},
  {id:'lessons',title:'Órai anyagok',subtitle:'A leckékhez kapcsolt tanári anyagok',icon:'▤',preview:'Tananyag szerinti gyűjtemény',url:'/cloud/curriculum',items:['Tanmeneti tervezet','Leckék és hivatkozások','PDF-oldalak','Feladatgyűjtemények']},
- {id:'tools',title:'Eszközök',subtitle:'Tanítást segítő digitális eszközök',icon:'✧',preview:'Külső segédletek',items:['GeoGebra','Desmos','WolframAlpha','Digitális függvénytáblázat']}
+ {id:'videos',title:'Videótár',subtitle:'Matematika és vendéglátás oktatóvideók',icon:'▶',preview:'Videók témakör és tantárgy szerint',url:'/cloud/videos',items:['Matematikai magyarázatok','Konyhatechnológiai bemutatók','Kedvenc videólinkek','Tananyaghoz rendelve']}
 ];
 export default function Home(){
  const [active,setActive]=useState<string|null>(null);
@@ -20,7 +20,7 @@ export default function Home(){
  function dismiss(id:string){const rest=opened.filter(x=>x!==id);setOpened(rest);if(active===id){setActive(rest.at(-1)||null);setMaximized(false)}}
  return <main className="os-workspace">
   <div className="os-halo" aria-hidden="true"/>
-  <header className="os-header"><div className="os-brand"><span className="os-logo">◧</span><div><h1>Oktatási Segéd</h1><p>Digitális tanári munkafelület</p></div></div><div className="os-header-links"><a href="/cloud/videos">🎬 Videótár ↗</a><a href="/cloud">Felhős könyvtár ↗</a><span className="os-state">Fejlesztési Preview</span></div></header>
+  <header className="os-header"><div className="os-brand"><span className="os-logo">◧</span><div><h1>Oktatási Segéd</h1><p>Digitális tanári munkafelület</p></div></div><div className="os-header-links"><a href="/cloud">Felhős könyvtár ↗</a><span className="os-state">Fejlesztési Preview</span></div></header>
   <section className="os-intro"><div><span className="os-kicker">MATEMATIKA · TECHNIKUM · 9–12.</span><h2>A tananyagaim egy helyen</h2><p>Nyiss meg egy kártyát. iPaden a munkafelületed fölött marad, és bármikor teljes képernyőre nagyíthatod.</p></div><a href="/cloud/curriculum" className="os-quicklink">Ugrás a tananyagfához ↗</a></section>
   <div className="os-tiles">{tiles.map((t,i)=><button type="button" key={t.id} className={'os-tile os-tile-'+t.id} onClick={()=>open(t.id)} aria-label={t.title+' megnyitása'}>
     <span className="os-tile-top"><span className="os-tile-icon">{t.icon}</span><span className="os-tile-arrow">↗</span></span>
