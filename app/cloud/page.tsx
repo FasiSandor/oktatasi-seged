@@ -179,7 +179,15 @@ async function upload(file:File):Promise<string>{
   if(selected.length>80)throw Error('Egyszerre legfeljebb 80 fejezet fogadható el.');
   const existing=(await api('topics?subjectId='+encodeURIComponent(subject))).topics as Topic[];
   const duplicateAssignments=new Set<string>();
-  for(const [index,chapter] of suggestions.entries()){if(!chapter.selected)continue;const label=chapter.title.trim().toLocaleLowerCase('hu');const assigned=suggestionMatches[index]||label;if(duplicateAssignments.has(assigned))throw Error('Ugyanahhoz a témakörhöz több fejezet van kijelölve ebben a könyvben. Egyenként ellenőrizd a kapcsolásokat.');duplicateAssignments.add(assigned)}
+  for(const [index,chapter] of suggestions.entries()){
+   if(!chapter.selected)continue;
+   const label=chapter.title.trim().toLocaleLowerCase('hu');
+   const assigned=suggestionMatches[index]||label+'|'+(chapterNames[index]||'').trim().toLocaleLowerCase('hu');
+   if(duplicateAssignments.has(assigned))throw Error('Ugyanaz a lecke többször szerepel a kijelölt kapcsolások között. Ellenőrizd a sorokat.');
+   duplicateAssignments.add(assigned);
+   if(suggestionMatches[index]&&!existing.some(t=>t.id===suggestionMatches[index]))throw Error('A kijelölt céllecke már nem található. Frissítsd az egyeztetést.');
+  }
+  if(!confirm(selected.length+' ellenőrzött könyvoldal-kapcsolat mentése? A már létező kapcsolatok oldalszámát ez felülírhatja.'))return;
   const saved=new Map(existing.map(t=>[t.name.trim().toLocaleLowerCase('hu')+'|'+(t.parent_id||''),t.id]));
   const parents=new Map<string,string>();
   for(const [index,chapter] of suggestions.entries()){
