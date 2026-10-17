@@ -9,8 +9,8 @@ export default function VideoLibrary(){
  const [category,setCategory]=useState('matematika'),[title,setTitle]=useState(''),[url,setUrl]=useState(''),[note,setNote]=useState(''),[topic,setTopic]=useState('');
  const [filter,setFilter]=useState('osszes'),[search,setSearch]=useState(''),[message,setMessage]=useState(''),[busy,setBusy]=useState(false);
  async function request(path:string,init?:RequestInit){const token=await authenticatedJWT();const r=await fetch('/api/cloud/'+path,{...init,headers:{Authorization:'Bearer '+token,...(init?.body?{'Content-Type':'application/json'}:{})}});const data=await r.json();if(!r.ok)throw Error(data.error||'Hálózati hiba');return data}
- async function reload(){const data=await request('videos');setVideos(data.videos||[])}
- useEffect(()=>{void reload().catch(e=>setMessage(e.message));void (async()=>{try{const d=await request('topics');setTopics(d.topics||[])}catch{}})()},[]);
+ async function reload(){const data=await request('videos');setVideos(data.videos||[]);setTopics(data.topics||[])}
+ useEffect(()=>{void reload().catch(e=>setMessage(e.message));},[]);
  const visible=useMemo(()=>videos.filter(v=>(filter==='osszes'||v.category===filter)&&[v.title,v.note,v.provider,v.topic_name||''].join(' ').toLocaleLowerCase('hu').includes(search.toLocaleLowerCase('hu'))),[videos,filter,search]);
  async function add(e:React.FormEvent){e.preventDefault();setBusy(true);setMessage('');try{await request('videos',{method:'POST',body:JSON.stringify({title,url,note,category,topicId:topic||null})});setTitle('');setUrl('');setNote('');setTopic('');await reload();setMessage('Videólink elmentve.')}catch(e){setMessage(e instanceof Error?e.message:'Mentési hiba')}finally{setBusy(false)}}
  async function remove(id:string){if(!confirm('Eltávolítod a videótárból ezt a linket?'))return;setBusy(true);try{await request('videos?id='+encodeURIComponent(id),{method:'DELETE'});await reload()}catch(e){setMessage(e instanceof Error?e.message:'Törlési hiba')}finally{setBusy(false)}}
