@@ -12,6 +12,7 @@ export default function Curriculum(){
  const [expanded,setExpanded]=useState<Record<string,boolean>>({});
  const [error,setError]=useState('');
  const [selected,setSelected]=useState<string|null>(null);
+ const [showSources,setShowSources]=useState(false);
  useEffect(()=>{let alive=true;
   (async()=>{try{const token=await authenticatedJWT();const response=await fetch('/api/cloud/curriculum/blueprint',{headers:{Authorization:'Bearer '+token}});
    if(!response.ok)throw new Error(response.status===401?'Jelentkezz be a felhős könyvtárba.':'A tananyagfa nem tölthető be.');
@@ -29,6 +30,7 @@ export default function Curriculum(){
     <strong style={{color:'#60A5FA'}}>Fontos: ellenőrzés alatt</strong>
     <p style={{marginBottom:0,lineHeight:1.55}}>A fő témacsoportokhoz készített leckeindex még javaslat. A pontos évfolyamos bontást és óraszámokat a kerettanterv és érettségi követelmények alapján külön ellenőrizni kell. Az itt látható témák nem jelentenek jóváhagyott, kötelező tanmenetet. Ez a nézet nem módosít könyveket vagy adatbázist.</p>
    </section>
+   <section style={{...panel,marginBottom:18}}><button aria-expanded={showSources} onClick={()=>setShowSources(v=>!v)} style={{background:'transparent',border:0,color:'#60A5FA',fontWeight:700,fontSize:15,cursor:'pointer',padding:0}}>▸ Források és a technikumi tanmenet módszere</button>{showSources&&<div style={{lineHeight:1.65,marginTop:12,color:'#ced8e8'}}><p>A tantárgyfa jelenleg évfolyamfüggetlen tématár. A 9–12. évfolyamos ütemezést a NAT2020, a megfelelő kerettanterv és a középszintű érettségi követelmények összevetésével kell létrehozni. Az egyes technikumok órakerete eltérhet, ezért nem állítunk be bizonyítatlan kötelező éves óraszámot.</p><p><a style={{color:'#60A5FA'}} href='https://njt.jog.gov.hu/jogszabaly/2020-5-20-22.0' target='_blank' rel='noopener noreferrer'>NAT2020 – jogszabály ↗</a></p><p><a style={{color:'#60A5FA'}} href='https://www.oktatas.hu/pub_bin/dload/kozoktatas/erettsegi/vizsgakovetelmenyek2024/matematika_2024_e.pdf' target='_blank' rel='noopener noreferrer'>Matematika érettségi követelmények ↗</a></p></div>}</section>
    <div style={{display:'flex',gap:10,flexWrap:'wrap',marginBottom:18}}>
     <input aria-label="Téma vagy lecke keresése" placeholder="Keress: variáció, kombináció, függvény…" value={query} onChange={e=>setQuery(e.target.value)} style={{flex:'1 1 250px',minWidth:0,padding:12,borderRadius:10,background:'#111827',border:'1px solid #344259',color:'white',fontSize:16}}/>
     <span style={{padding:12,color:'#AABCD5'}}>{filtered.length} témacsoport</span>
