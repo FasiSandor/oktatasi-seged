@@ -178,6 +178,11 @@ async function upload(file:File):Promise<string>{
   if(!selected.length)throw Error('Jelölj ki legalább egy fejezetet.');
   if(selected.length>80)throw Error('Egyszerre legfeljebb 80 fejezet fogadható el.');
   const existing=(await api('topics?subjectId='+encodeURIComponent(subject))).topics as Topic[];
+  const isCentralMath=subjects.some(s=>s.id===subject&&s.name.toLocaleLowerCase('hu')==='matematika')&&existing.some(t=>t.name==='Gondolkodási módszerek – kombinatorika, gráfok');
+  if(isCentralMath){
+   const unresolved=suggestions.flatMap((chapter,index)=>chapter.selected&&!suggestionMatches[index]?[chapter.title]:[]);
+   if(unresolved.length)throw Error('A központi tananyagfában előbb válassz célleckét minden kijelölt könyvfejezethez. Nincs automatikus új lecke. Hiányzik: '+unresolved.slice(0,3).join(', ')+(unresolved.length>3?'…':''));
+  }
   const duplicateAssignments=new Set<string>();
   for(const [index,chapter] of suggestions.entries()){
    if(!chapter.selected)continue;
