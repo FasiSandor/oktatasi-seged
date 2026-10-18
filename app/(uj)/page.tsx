@@ -2,6 +2,7 @@
 import {useCallback,useEffect,useMemo,useRef,useState} from 'react';
 import {api,ApiError,hasSession,localPrefs,signOut} from '../../lib/client-api';
 import {Icon,spineColor} from './icons';
+import {konyvCim} from '../../lib/konyv-cim';
 import Belepes from './Belepes';
 
 type Subject={id:string;name:string};
@@ -268,7 +269,7 @@ export default function Tananyag(){
      {hits.length===0&&<p className="us-status" style={{padding:'8px 12px',margin:0}}>Nincs találat.</p>}
      {hits.map(h=><button key={h.kind+h.id} type="button" role="option" aria-selected="false" onClick={()=>pickHit(h)}>
       <Icon name={h.kind==='doc'?'book':'lines'} size={18}/>
-      <span style={{flex:1}}>{h.kind==='doc'?h.title:h.name}</span>
+      <span style={{flex:1}}>{h.kind==='doc'?konyvCim(h.title):h.name}</span>
       <small>{h.kind==='doc'?'könyv':h.subject_name}</small>
      </button>)}
     </div>}
@@ -353,7 +354,7 @@ export default function Tananyag(){
          <span className="us-book-spine" style={{background:color}}/>
          <span className="us-book-body">
           <span className="us-book-kind" style={{color}}>{KIND[d.category||'reference']||'Anyag'}</span>
-          <span className="us-book-title">{d.title}</span>
+          <span className="us-book-title">{konyvCim(d.title,d.filename)}</span>
           <span className="us-book-where">{chapters.length} fejezet tartozik ehhez a témához. Koppints arra, amelyiket most tanítod.</span>
           <span className="us-ch">
            {chapters.map(c=><button key={c.link_id||c.pdf_page} type="button" className="us-ch-btn" onClick={()=>void openDoc(c)}>
@@ -368,7 +369,7 @@ export default function Tananyag(){
         <span className="us-book-spine" style={{background:color}}/>
         <span className="us-book-body">
          <span className="us-book-kind" style={{color}}>{KIND[d.category||'reference']||'Anyag'}</span>
-         <span className="us-book-title">{d.title}</span>
+         <span className="us-book-title">{konyvCim(d.title,d.filename)}</span>
          <span className="us-book-where">{d.mime_type==='application/pdf'?(d.pdf_page?'A témánál nyílik ki':'Még nincs megadva a hely, az elején nyílik'):'Eredeti fájl megnyitása'}</span>
          <span className="us-book-open">Kinyitom<Icon name="arrow" size={16} strokeWidth={2.2}/></span>
         </span>

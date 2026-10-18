@@ -3,10 +3,22 @@ import {Suspense,useCallback,useEffect,useRef,useState} from 'react';
 import {useSearchParams} from 'next/navigation';
 import {api,ApiError,hasSession,localPrefs} from '../../../lib/client-api';
 import {Icon,spineColor} from '../icons';
+import {konyvCim} from '../../../lib/konyv-cim';
 import Belepes from '../Belepes';
 import KonyvLap,{type Mark,type PdfDoc,type Stroke,type Tool} from './KonyvLap';
 
-type Doc={id:string;title:string;mime_type:string;pdf_page?:number|null;link_id?:string};
+type Doc={id:string;title:string;filename?:string|null;mime_type:string;pdf_page?:number|null;link_id?:string};
+
+// Egy könyv fejezetenként külön sorként jön vissza. A fülekhez könyvenként
+// egy kell: a legkisebb oldalszámú fejezetét tartjuk meg, ott nyílik ki.
+function konyvenkent(list:Doc[]):Doc[]{
+ const byId=new Map<string,Doc>();
+ for(const d of list){
+  const prev=byId.get(d.id);
+  if(!prev||(d.pdf_page&&(!prev.pdf_page||d.pdf_page<prev.pdf_page)))byId.set(d.id,d);
+ }
+ return [...byId.values()];
+}
 type Note={id:string;pdf_page:number;body:string};
 
 const MARKER_COLORS=[{c:'#FFD84D',n:'Sárga'},{c:'#9BE7C4',n:'Zöld'},{c:'#FFB4C8',n:'Rózsaszín'},{c:'#A8D4FF',n:'Kék'}];
@@ -57,12 +69,12 @@ function Olvaso(){
   (async()=>{
    if(topicId){
     const d=await api<{documents:Doc[]}>('documents?topicId='+encodeURIComponent(topicId));
-    setBooks(d.documents.filter(x=>x.mime_type==='application/pdf'));
-    const own=d.documents.find(x=>x.id===docId);if(own)setTitle(own.title);
+    setBooks(konyvenkent(d.documents.filter(x=>x.mime_type==='application/pdf')));
+    const own=d.documents.find(x=>x.id===docId);if(own)setTitle(konyvCim(own.title,own.filename));
    }
    if(!topicId||!title){
     const all=await api<{documents:Doc[]}>('documents');
-    const own=all.documents.find(x=>x.id===docId);if(own)setTitle(own.title);
+    const own=all.documents.find(x=>x.id===docId);if(own)setTitle(konyvCim(own.title,own.filename));
    }
   })().catch(fail);
  // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -128,7 +140,7 @@ function Olvaso(){
 
  function switchBook(b:Doc){
   if(b.id===docId)return;
-  setTitle(b.title);setPage(b.pdf_page||0);setDocId(b.id);
+  setTitle(konyvCim(b.title,b.filename));setPage(b.pdf_page||0);setDocId(b.id);
  }
 
  async function addStroke(s:{tool:'marker'|'pen';color:string;width:number;points:number[][]}){
@@ -184,7 +196,7 @@ function Olvaso(){
   <header className="rd-top" style={focus?{minHeight:56}:undefined}>
    <a href="/" className="rd-back"><Icon name="back" size={20} strokeWidth={2.2}/><span>{backLabel}</span></a>
    {tabs.length>0?<div className="rd-books" role="tablist" aria-label="Könyv">
-    {tabs.map(b=><button key={b.link_id||b.id} type="button" role="tab" aria-selected={b.id===docId} onClick={()=>switchBook(b)}><i style={{background:spineColor(b.id)}}/>{b.title}</button>)}
+    {tabs.map(b=><button key={b.id} type="button" role="tab" aria-selected={b.id===docId} onClick={()=>switchBook(b)}><i style={{background:spineColor(b.id)}}/>{konyvCim(b.title,b.filename)}</button>)}
    </div>:<strong style={{fontSize:16,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',minWidth:0}}>{title}</strong>}
    <div className="rd-pager">
     <button type="button" className="us-icon-btn" aria-label="Előző oldal" onClick={()=>go(page-1)} disabled={page<=1}><Icon name="back" size={18} strokeWidth={2.2}/></button>

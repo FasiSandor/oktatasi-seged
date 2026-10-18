@@ -7,6 +7,7 @@ import {inspectPdf} from '../../../lib/pdf-contents';
 import {detectOffset,guessContentsPages,openPdf,pageJpeg,thumbnail} from '../../../lib/pdf-pages';
 import {suggestedTopicMatch} from '../../../lib/topic-matching';
 import {Icon,spineColor} from '../icons';
+import {konyvCim} from '../../../lib/konyv-cim';
 import Belepes from '../Belepes';
 
 type Subject={id:string;name:string};
@@ -155,7 +156,7 @@ function Feltoltes(){
  }
 
  async function useExisting(d:Doc){
-  setError('');setTitle(d.title);setDocId(d.id);setStep('upload');setProgress(100);setStatus('A könyv megnyitása…');
+  setError('');setTitle(konyvCim(d.title,d.filename));setDocId(d.id);setStep('upload');setProgress(100);setStatus('A könyv megnyitása…');
   try{
    const {url}=await api<{url:string}>('download?id='+encodeURIComponent(d.id));
    const response=await fetch(url);if(!response.ok)throw new Error('A könyv nem olvasható ('+response.status+').');
@@ -340,7 +341,7 @@ function Feltoltes(){
      <div className="up-actions"><button type="button" className="us-btn us-btn-dark" disabled={!file||!subjectId} onClick={()=>void startUpload()}>Feltöltés és folytatás<Icon name="arrow" size={16}/></button></div>
      {library.filter(d=>d.mime_type==='application/pdf').length>0&&<div className="up-existing">
       <h3 className="us-label">Vagy egy már feltöltött könyv újrapárosítása</h3>
-      <ul>{library.filter(d=>d.mime_type==='application/pdf').map(d=><li key={d.id}><button type="button" className="us-row" onClick={()=>void useExisting(d)}><span className="up-mini-spine" style={{background:spineColor(d.id)}}/><span style={{flex:1,textAlign:'left'}}>{d.title}</span><Icon name="next" size={16}/></button></li>)}</ul>
+      <ul>{library.filter(d=>d.mime_type==='application/pdf').map(d=><li key={d.id}><button type="button" className="us-row" onClick={()=>void useExisting(d)}><span className="up-mini-spine" style={{background:spineColor(d.id)}}/><span style={{flex:1,textAlign:'left'}}>{konyvCim(d.title,d.filename)}</span><Icon name="next" size={16}/></button></li>)}</ul>
      </div>}
     </section>}
 
