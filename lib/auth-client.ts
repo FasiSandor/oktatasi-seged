@@ -1,16 +1,21 @@
 'use client';
 import { createAuthClient } from '@neondatabase/auth';
 
-const url = process.env.NEXT_PUBLIC_NEON_AUTH_URL;
-if (!url) {
-  // Throw only at runtime when an auth operation is requested.
-}
-const cachedClient = url ? createAuthClient(url) : null;
-export function authClient() {
-  if (!url) throw new Error('Neon Auth nincs beállítva.');
-  if(!cachedClient)throw new Error('Neon Auth nincs beállítva.');
+const make=(url:string)=>createAuthClient(url);
+type Client=ReturnType<typeof make>;
+let cachedClient:Client|null=null;
+
+/**
+ * A kliens a saját címünk /api/auth útvonalát használja (lásd app/api/auth),
+ * nem közvetlenül a Neon Auth címét. Így a bejelentkezés süti a saját
+ * domainen marad, és a Safari nem felejti el oldalfrissítéskor.
+ */
+export function authClient():Client{
+  if(typeof window==='undefined')throw new Error('A bejelentkezés csak böngészőben érhető el.');
+  if(!cachedClient)cachedClient=make(window.location.origin+'/api/auth');
   return cachedClient;
 }
+
 export async function authenticatedJWT():Promise<string> {
   const client = authClient();
   const result = await client.token();
