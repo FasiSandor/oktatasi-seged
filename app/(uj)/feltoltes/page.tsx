@@ -13,7 +13,7 @@ type Subject={id:string;name:string};
 type Topic={id:string;name:string;parent_id:string|null};
 type Doc={id:string;title:string;filename:string;mime_type:string};
 type Step='pick'|'upload'|'contents'|'offset'|'reading'|'match'|'saving'|'done';
-type Row={key:number;title:string;group:string;page:number;target:string;state:'suggested'|'approved'|'skipped'|'open';newParent:string};
+type Row={key:number;title:string;group:string;page:number;target:string;state:'suggested'|'approved'|'skipped'|'open';newParent:string;extra:string[];picked?:boolean;adding?:boolean};
 type Audit={numberedCount:number;range:number[]|null;missing:number[];duplicated:number[]};
 
 const KINDS:[string,string][]=[['reference','Tankönyv'],['exercise','Feladatgyűjtemény'],['worksheet','Feladatlap'],['solution','Megoldókulcs'],['notes','Jegyzet'],['table','Függvénytáblázat']];
@@ -213,7 +213,7 @@ function Feltoltes(){
   const candidates=subs.length?subs:topics;
   setRows(items.map((it,i)=>{
    const match=suggestedTopicMatch(it.title,candidates);
-   return {key:i,title:it.title,group:it.group,page:it.page,target:match?.id||'',state:match?'suggested':'open',newParent:''};
+   return {key:i,title:it.title,group:it.group,page:it.page,target:match?.id||'',state:match?'suggested':'open',newParent:'',extra:[]};
   }));
  }
  // Ha a témák később érkeznek, mint a fejezetek, a javaslatokat frissítjük.
@@ -247,6 +247,21 @@ function Feltoltes(){
  },[step,aiState,topics,subjectId,rows,fail]);
 
  const update=(key:number,patch:Partial<Row>)=>setRows(v=>v.map(r=>r.key===key?{...r,...patch}:r));
+ /** Kézi választás: a következő, még párosítatlan (vagy korábban így kitöltött) sorokba javaslatként átvisszük. */
+ function pick(key:number,target:string){
+  if(!target)return;
+  setRows(v=>{
+   const at=v.findIndex(r=>r.key===key);
+   return v.map((r,i)=>{
+    if(r.key===key)return {...r,target,state:'approved',picked:false};
+    if(i>at&&r.state!=='approved'&&r.state!=='skipped'&&(!r.target||r.picked))return {...r,target,state:'suggested',picked:true};
+    return r;
+   });
+  });
+ }
+ function addExtra(key:number,target:string){
+  setRows(v=>v.map(r=>r.key===key?{...r,adding:false,extra:target&&target!==r.target&&!r.extra.includes(target)?[...r.extra,target]:r.extra}:r));
+ }
 
  async function createSub(r:Row){
   if(!r.newParent)return;
@@ -262,13 +277,14 @@ function Feltoltes(){
  async function save(all:boolean){
   const list=rows.filter(r=>r.target&&(r.state==='approved'||(all&&r.state==='suggested')));
   if(!list.length){setError('Még egy fejezetet sem hagytál jóvá.');return}
-  const targets=new Set<string>();
-  for(const r of list){if(targets.has(r.target)){setError('Ugyanahhoz az altémához két fejezet is tartozna: '+label(r.target)+'. Az egyiket hagyd ki.');return}targets.add(r.target)}
+  // Egy altémához több fejezet, egy fejezethez több altéma is tartozhat.
+  const jobs:{topicId:string;page:number;title:string}[]=[];const seen=new Set<string>();
+  for(const r of list)for(const t of [r.target,...r.extra]){const k=t+':'+r.page;if(!seen.has(k)){seen.add(k);jobs.push({topicId:t,page:r.page,title:r.title})}}
   setError('');setStep('saving');let count=0;
   try{
-   for(const r of list){
-    setStatus('Mentés: '+(count+1)+' / '+list.length);
-    await api('links',{method:'POST',body:JSON.stringify({topicId:r.target,documentId:docId,category:kind,page:r.page})});
+   for(const j of jobs){
+    setStatus('Mentés: '+(count+1)+' / '+jobs.length);
+    await api('links',{method:'POST',body:JSON.stringify({topicId:j.topicId,documentId:docId,category:kind,page:j.page,chapterTitle:j.title})});
     count++;
    }
    setSavedCount(count);setStep('done');
@@ -367,17 +383,25 @@ function Feltoltes(){
     {step==='match'&&<section className="up-card up-match">
      <div className="up-match-head"><h2>Hova kerüljenek a fejezetek?</h2><span className="us-status">{status}</span></div>
      {audit&&(audit.missing.length>0||audit.duplicated.length>0)&&<p className="up-warn">A fejezetszámozásban {audit.missing.length?'hiány van ('+audit.missing.join(', ')+')':''}{audit.missing.length&&audit.duplicated.length?', és ':''}{audit.duplicated.length?'ismétlődés van ('+audit.duplicated.join(', ')+')':''}. Lehet, hogy egy tartalomjegyzék-oldal kimaradt.</p>}
-     <div className="up-table" role="table" aria-label="Fejezetek párosítása">
+     {aiState==='running'&&<div className="up-ai-busy" role="status"><span className="up-ai-bar" aria-hidden="true"/><span>Az AI a tananyagfádban keresi a fejezetek párját. Ez fél percig is eltarthat.</span></div>}
+     <div className="up-table" role="table" aria-label="Fejezetek párosítása" aria-busy={aiState==='running'}>
       <div className="up-tr up-th" role="row"><span role="columnheader">A könyvben</span><span role="columnheader">Nálad, a tananyagfában</span><span role="columnheader" style={{textAlign:'right'}}>Döntés</span></div>
       {rows.map(r=><div key={r.key} role="row" className={'up-tr'+(r.state==='approved'?' is-approved':'')+(r.state==='skipped'?' is-skipped':'')}>
        <span role="cell" className="up-chapter"><b>{r.title}</b>{r.group&&<small>{r.group}</small>}</span>
        <span role="cell">
         {r.state==='open'&&!r.target?<span className="up-missing">
-         <select className="up-select" value="" onChange={e=>update(r.key,{target:e.target.value,state:'approved'})} aria-label={r.title+': altéma választása'}>
+         <select className="up-select" value="" onChange={e=>pick(r.key,e.target.value)} aria-label={r.title+': altéma választása'}>
           <option value="">Nincs párja, válassz…</option>
           {mains.map(m=><optgroup key={m.id} label={m.name}>{[m,...topics.filter(t=>t.parent_id===m.id)].map(t=><option key={t.id} value={t.id}>{t.id===m.id?m.name+' (egész témakör)':t.name}</option>)}</optgroup>)}
          </select>
         </span>:<span className="up-target">{label(r.target).split(' › ').map((part,i,arr)=>i<arr.length-1?<span key={i} style={{color:'#586274'}}>{part} › </span>:<b key={i}>{r.state==='approved'?<span className="us-marker">{part}</span>:part}</b>)}</span>}
+        {r.target&&(r.extra.length>0||r.adding||r.state!=='skipped')&&<span className="up-extra">
+         {r.extra.map(x=><span key={x} className="up-extra-chip">{label(x)}<button type="button" aria-label={label(x)+' eltávolítása'} onClick={()=>update(r.key,{extra:r.extra.filter(y=>y!==x)})}>×</button></span>)}
+         {r.adding?<select className="up-select" value="" autoFocus onChange={e=>addExtra(r.key,e.target.value)} onBlur={()=>update(r.key,{adding:false})} aria-label={r.title+': még egy altéma'}>
+          <option value="">Melyik altémához tartozik még?</option>
+          {mains.map(m=><optgroup key={m.id} label={m.name}>{[m,...topics.filter(t=>t.parent_id===m.id)].map(t=><option key={t.id} value={t.id}>{t.id===m.id?m.name+' (egész témakör)':t.name}</option>)}</optgroup>)}
+         </select>:r.state!=='skipped'&&<button type="button" className="us-btn us-btn-ghost up-extra-add" onClick={()=>update(r.key,{adding:true})}>+ még egy altéma</button>}
+        </span>}
         {r.newParent!==''&&<span className="up-newsub">
          <select className="up-select" value={r.newParent==='?'?'':r.newParent} onChange={e=>update(r.key,{newParent:e.target.value||'?'})} aria-label="Melyik témakör alá?">
           <option value="">Melyik témakör alá?</option>{mains.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}
@@ -390,7 +414,7 @@ function Feltoltes(){
         :r.state==='skipped'?<button type="button" className="us-btn" onClick={()=>update(r.key,{state:r.target?'suggested':'open'})}>Mégis kell</button>
         :<>
          {r.target&&<button type="button" className="us-btn up-ok" onClick={()=>update(r.key,{state:'approved'})}>Jó</button>}
-         {r.target&&<button type="button" className="us-btn" onClick={()=>update(r.key,{target:'',state:'open'})}>Másik</button>}
+         {r.target&&<button type="button" className="us-btn" onClick={()=>update(r.key,{target:'',state:'open',picked:false})}>Másik</button>}
          {!r.target&&<button type="button" className="us-btn" onClick={()=>update(r.key,{newParent:'?'})}>Új altéma</button>}
          <button type="button" className="us-btn us-btn-soft" onClick={()=>update(r.key,{state:'skipped',newParent:''})}>Kihagyom</button>
         </>}
@@ -400,7 +424,7 @@ function Feltoltes(){
      <div className="up-foot">
       <span><b>{rows.length} fejezet</b> · {approved.length} jóváhagyva{waiting?' · '+waiting+' vár a döntésedre':''}</span>
       <button type="button" className="us-btn" disabled={!approved.length} onClick={()=>void save(false)}>Csak a jóváhagyottakat mentem</button>
-      <button type="button" className="us-btn us-btn-dark" disabled={!rows.some(r=>r.target&&r.state!=='skipped')} onClick={()=>void save(true)}>A javaslatokat elfogadom</button>
+      <button type="button" className="us-btn us-btn-dark" disabled={!rows.some(r=>r.target&&r.state!=='skipped')} onClick={()=>void save(true)}>Mindet elfogadom és mentem</button>
      </div>
     </section>}
 

@@ -7,16 +7,17 @@ export async function POST(request:NextRequest){
   const owner=await ownerFromRequest(request),b=await request.json();
   if(!valid(b.topicId)||!valid(b.documentId)||b.page!=null&&(!Number.isInteger(b.page)||b.page<1))throw Error('INVALID');
   const category=typeof b.category==='string'&&['reference','exercise','worksheet','solution','notes','table'].includes(b.category)?b.category:'reference';
+  const chapter=typeof b.chapterTitle==='string'&&b.chapterTitle.trim()?b.chapterTitle.trim().slice(0,160):null;
   const sql=database();
   const rows=await sql`
-   INSERT INTO os_document_links(owner_id,topic_id,document_id,category,pdf_page,position)
-   SELECT ${owner},t.id,d.id,${category},${b.page??null},
+   INSERT INTO os_document_links(owner_id,topic_id,document_id,category,pdf_page,chapter_title,position)
+   SELECT ${owner},t.id,d.id,${category},${b.page??null},${chapter},
     COALESCE((SELECT max(l.position)+1 FROM os_document_links l WHERE l.topic_id=t.id AND l.owner_id=${owner}),0)
    FROM os_topics t JOIN os_subjects s ON s.id=t.subject_id AND s.owner_id=${owner}
     JOIN os_documents d ON d.id=${b.documentId} AND d.owner_id=${owner} AND d.state='ready'
    WHERE t.id=${b.topicId} AND t.owner_id=${owner}
-   ON CONFLICT(topic_id,document_id,category) DO UPDATE SET pdf_page=excluded.pdf_page
-   RETURNING id,topic_id,document_id,category,pdf_page,position`;
+   ON CONFLICT(topic_id,document_id,category,(COALESCE(pdf_page,0))) DO UPDATE SET chapter_title=COALESCE(excluded.chapter_title,os_document_links.chapter_title)
+   RETURNING id,topic_id,document_id,category,pdf_page,chapter_title,position`;
   if(!rows.length)throw Error('FORBIDDEN');
   return Response.json({link:rows[0]},{status:201});
  }catch(e){return apiError(e)}

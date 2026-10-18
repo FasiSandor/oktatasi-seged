@@ -265,3 +265,16 @@ a{color:inherit;text-decoration:none}
  .up-th{display:none}
  .up-decide{justify-content:flex-start;flex-wrap:wrap}
 }
+
+/* ---------- Párosítás: AI töltés, több altéma ---------- */
+.up-ai-busy{margin:12px 20px 0;padding:14px 16px;border-radius:12px;background:var(--warn-soft);display:flex;flex-direction:column;gap:10px;font-size:14px;color:var(--ink-2)}
+.up-ai-bar{position:relative;display:block;height:8px;border-radius:4px;background:var(--ground-deep);overflow:hidden}
+.up-ai-bar:after{content:'';position:absolute;top:0;bottom:0;left:0;width:40%;border-radius:4px;background:var(--marker);animation:up-ai-sweep 1.4s ease-in-out infinite}
+@keyframes up-ai-sweep{0%{transform:translateX(-100%)}100%{transform:translateX(250%)}}
+@media (prefers-reduced-motion:reduce){.up-ai-bar:after{animation:none;width:100%;opacity:.6}}
+.up-match .up-table[aria-busy="true"]{opacity:.6}
+.up-extra{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;align-items:center}
+.up-extra-chip{display:inline-flex;align-items:center;gap:4px;min-height:32px;padding:0 4px 0 10px;border-radius:16px;background:var(--surface-soft);font-size:13px;font-weight:600}
+.up-extra-chip button{width:28px;height:28px;border:0;border-radius:14px;background:transparent;font-size:16px;color:var(--muted)}
+.up-extra-add{min-height:36px;padding:0 8px;font-size:13px}
+.up-extra .up-select{min-height:40px;font-size:14px;flex:1;min-width:180px}
