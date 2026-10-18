@@ -68,6 +68,7 @@ function Feltoltes(){
  const [status,setStatus]=useState('');
  const [error,setError]=useState('');
  const [savedCount,setSavedCount]=useState(0);
+ const [aiState,setAiState]=useState<'idle'|'running'|'done'|'failed'>('idle');
  const pdfRef=useRef<PDFDocumentProxy|null>(null);
 
  const fail=useCallback((e:unknown)=>{
@@ -207,6 +208,7 @@ function Feltoltes(){
  }
 
  function buildRows(items:{title:string;page:number;group:string}[]){
+  setAiState('idle');
   const subs=topics.filter(t=>t.parent_id);
   const candidates=subs.length?subs:topics;
   setRows(items.map((it,i)=>{
@@ -222,6 +224,27 @@ function Feltoltes(){
    return m?{...r,target:m.id,state:'suggested'}:r;
   }));
  },[topics,step]);
+
+ // A Gemini tartalom alapján párosít; a pontos szóegyezést (fent) nem írja felül.
+ useEffect(()=>{
+  if(step!=='match'||aiState!=='idle'||!topics.length||!subjectId||!rows.length)return;
+  setAiState('running');
+  const chapters=rows.filter(r=>r.state==='open'&&!r.target).map(r=>({key:r.key,title:r.title,group:r.group}));
+  if(!chapters.length){setAiState('done');return}
+  setStatus(rows.length+' fejezetet találtam. Az AI most keresi a párjukat…');
+  api<{matches:{key:number;topicId:string;confidence:'high'|'low'}[]}>('ai-match',{method:'POST',body:JSON.stringify({subjectId,chapters})},60000)
+   .then(r=>{
+    const found=new Map(r.matches.map(m=>[m.key,m]));
+    setRows(v=>v.map(row=>{const m=found.get(row.key);return m&&row.state==='open'&&!row.target&&topics.some(t=>t.id===m.topicId)?{...row,target:m.topicId,state:'suggested'}:row}));
+    setStatus(rows.length+' fejezetből '+(r.matches.length+rows.length-chapters.length)+' fejezethez találtam párt. Az AI javasol, te döntesz.');
+    setAiState('done');
+   })
+   .catch(e=>{
+    setAiState('failed');
+    if(e instanceof ApiError&&e.status===401){fail(e);return}
+    setStatus('Az AI-párosítás most nem sikerült, ezért csak a pontos névegyezéseket javasoltam. '+(e instanceof Error?e.message:''));
+   });
+ },[step,aiState,topics,subjectId,rows,fail]);
 
  const update=(key:number,patch:Partial<Row>)=>setRows(v=>v.map(r=>r.key===key?{...r,...patch}:r));
 
