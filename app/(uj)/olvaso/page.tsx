@@ -194,7 +194,7 @@ function Olvaso(){
 
  return <div className="rd-app">
   <header className="rd-top" style={focus?{minHeight:56}:undefined}>
-   <a href="/" className="rd-back"><Icon name="back" size={20} strokeWidth={2.2}/><span>{backLabel}</span></a>
+   <a href={topicId?'/?topic='+encodeURIComponent(topicId):'/'} className="rd-back"><Icon name="back" size={20} strokeWidth={2.2}/><span>{backLabel}</span></a>
    {tabs.length>0?<div className="rd-books" role="tablist" aria-label="Könyv">
     {tabs.map(b=><button key={b.id} type="button" role="tab" aria-selected={b.id===docId} onClick={()=>switchBook(b)}><i style={{background:spineColor(b.id)}}/>{konyvCim(b.title,b.filename)}</button>)}
    </div>:<strong style={{fontSize:16,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',minWidth:0}}>{title}</strong>}
