@@ -16,16 +16,18 @@ function withTimeout<T>(promise:PromiseLike<T>,ms:number):Promise<T>{
 
 /** Hitelesített hívás a saját /api/cloud végpontokra. */
 export async function api<T=unknown>(path:string,options:RequestInit={},timeoutMs=20000):Promise<T>{
- let token:string;
- try{token=await withTimeout(authenticatedJWT(),12000)}
- catch{throw new ApiError('Jelentkezz be ismét.',401)}
+ // A JWT a gyorsabb út; ha nem kapjuk meg, a saját domainen lévő
+ // bejelentkezési süti is elég (a szerver azt is elfogadja).
+ let token='';
+ try{token=await withTimeout(authenticatedJWT(),12000)}catch{}
  const controller=new AbortController();
  const timer=setTimeout(()=>controller.abort(),timeoutMs);
  let response:Response;
  try{
   response=await fetch('/api/cloud/'+path,{
    ...options,
-   headers:{Authorization:'Bearer '+token,...(options.body?{'Content-Type':'application/json'}:{})},
+   credentials:'same-origin',
+   headers:{...(token?{Authorization:'Bearer '+token}:{}),...(options.body?{'Content-Type':'application/json'}:{})},
    signal:controller.signal
   });
  }catch{
@@ -43,9 +45,7 @@ export async function api<T=unknown>(path:string,options:RequestInit={},timeoutM
 export async function hasSession():Promise<boolean>{
  try{
   const result=await withTimeout(authClient().getSession(),12000);
-  if(!result.data?.session)return false;
-  await withTimeout(authenticatedJWT(),12000);
-  return true;
+  return !!result.data?.session;
  }catch{return false}
 }
 
