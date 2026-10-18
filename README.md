@@ -10,7 +10,8 @@ Technika: Next.js (App Router), React, TypeScript, Neon PostgreSQL és Neon Auth
 |---|---|
 | `/` | **Tananyag.** Tantárgy, évfolyam (9–12.), témakörök óraszámmal, altémák. A kiválasztott altémánál a hozzá rendelt könyvek „Kinyitom” gombbal, a témához tartozó linkek (Desmos, GeoGebra, WolframAlpha…) és egy saját jegyzet. |
 | `/olvaso?doc=…&page=…&topic=…` | **Olvasó.** A könyv a megadott oldalon nyílik. Fülön lehet váltani a téma másik könyvére. Pencil-eszköztár: lapozás, kiemelő, toll, radír, színek, visszavonás. Oldalanként cetli. Az utolsó olvasott oldalt megjegyzi. |
-| `/cloud` | Könyvtár: feltöltés, tartalomjegyzék-felismerés (PDF.js, majd Gemini), fejezetek témához rendelése. *Ez még a korábbi felület, a következő csomagban kap új megjelenést.* |
+| `/feltoltes` | **Feltöltés.** Könyv feltöltése címmel és típussal (vagy egy már feltöltött újrapárosítása). Ha a PDF-ben vannak könyvjelzők, azokból dolgozik; különben a kis előnézetekből te jelölöd meg a tartalomjegyzék oldalait (legfeljebb 4), ezeket olvassa ki a Gemini. A lapalji oldalszámot magától keresi; szkennelt könyvnél egyszer megkérdezi. A fejezeteket a tananyagfa altémáihoz javasolja, te hagyod jóvá, választasz mást, hozol létre új altémát vagy hagyod ki. |
+| `/cloud` | Könyvtár (korábbi felület), változatlan működéssel. |
 | `/cloud/curriculum` | A tananyagfa részletes szerkesztése (korábbi felület). |
 | `/cloud/videos` | Videótár (korábbi felület). |
 

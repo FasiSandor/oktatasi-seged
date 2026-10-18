@@ -267,11 +267,12 @@ export default function Tananyag(){
      </button>)}
     </div>}
    </div>
-   <a href={'/cloud'+(selected?'?topicId='+encodeURIComponent(selected.id):'')} className="us-btn us-btn-teal"><Icon name="upload" size={18}/>Feltöltés</a>
+   <a href={'/feltoltes'+(selected?'?topicId='+encodeURIComponent(selected.id):'')} className="us-btn us-btn-teal"><Icon name="upload" size={18}/>Feltöltés</a>
    <div style={{position:'relative'}} ref={menuBox}>
     <button type="button" className="us-avatar" aria-label="Fiók és beállítások" aria-expanded={menuOpen} onClick={()=>setMenuOpen(v=>!v)}><Icon name="user" size={20}/></button>
     {menuOpen&&<div className="us-menu">
-     <a href="/cloud">Könyvtár és feltöltés</a>
+     <a href="/feltoltes">Új könyv feltöltése</a>
+     <a href="/cloud">Könyvtár (régi nézet)</a>
      <a href="/cloud/curriculum">Tananyagfa szerkesztése</a>
      <a href="/cloud/videos">Videótár</a>
      <hr/>
@@ -349,7 +350,7 @@ export default function Tananyag(){
          <span className="us-book-open">Kinyitom<Icon name="arrow" size={16} strokeWidth={2.2}/></span>
         </span>
        </button>})}
-       <a className="us-book-add" href={'/cloud?topicId='+encodeURIComponent(selected.id)}>
+       <a className="us-book-add" href={'/feltoltes?topicId='+encodeURIComponent(selected.id)}>
         <span><Icon name="plus" size={22}/></span>
         <b>Könyv vagy feladatgyűjtemény</b>
         <small>Feltöltés vagy hozzárendelés ehhez a témához</small>

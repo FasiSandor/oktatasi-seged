@@ -7,8 +7,10 @@ const allowed=new Set(['application/pdf','image/jpeg','image/png','image/webp','
 export async function POST(request:NextRequest){
  try{const owner=await ownerFromRequest(request);const b=await request.json();
  if(typeof b.filename!=='string'||b.filename.length>240||!b.filename.trim()||!allowed.has(b.mimeType)||!Number.isSafeInteger(b.size)||b.size<=0||b.size>500*1024*1024)throw Error('INVALID');
+ // A könyv címe megadható; ha nincs, a fájlnév lesz a cím (a korábbi működés).
+ const title=typeof b.title==='string'&&b.title.trim()&&b.title.length<=160?b.title.trim():b.filename;
  const id=crypto.randomUUID(),key=owner.replace(/[^A-Za-z0-9_-]/g,'_')+'/'+id,sql=database();
- const rows=await sql`INSERT INTO os_documents(id,owner_id,title,filename,mime_type,byte_size,storage_key,state) VALUES(${id},${owner},${b.filename},${b.filename},${b.mimeType},${b.size},${key},'pending') RETURNING id`;
+ const rows=await sql`INSERT INTO os_documents(id,owner_id,title,filename,mime_type,byte_size,storage_key,state) VALUES(${id},${owner},${title},${b.filename},${b.mimeType},${b.size},${key},'pending') RETURNING id`;
  try{const command=new PutObjectCommand({Bucket:bucket(),Key:key,ContentType:b.mimeType});const uploadUrl=await getSignedUrl(s3(),command,{expiresIn:900});return Response.json({documentId:rows[0].id,uploadUrl,expiresIn:900})}catch(e){await sql`UPDATE os_documents SET state='failed' WHERE id=${id} AND owner_id=${owner}`;throw e}
  }catch(e){return apiError(e)}
 }
