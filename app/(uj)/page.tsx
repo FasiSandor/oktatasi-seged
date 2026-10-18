@@ -8,7 +8,7 @@ type Subject={id:string;name:string};
 type Topic={id:string;name:string;parent_id:string|null;position:number};
 type Profile={id:string;name:string;grade_from:number;grade_to:number};
 type Placement={id:string;topic_id:string;grade:number;suggested_minutes:number|null};
-type Doc={id:string;title:string;filename:string;mime_type:string;link_id?:string;pdf_page?:number|null;category?:string};
+type Doc={id:string;title:string;filename:string;mime_type:string;link_id?:string;pdf_page?:number|null;chapter_title?:string|null;category?:string};
 type Tool={id:string;label:string;url:string;provider:string};
 type Workspace={notes:string;questions:{question:string;answer:string}[]};
 type SearchHit={kind:'topic';id:string;name:string;subject_id:string;subject_name:string}|{kind:'doc';id:string;title:string};
@@ -203,6 +203,12 @@ export default function Tananyag(){
   }catch(e){setNotesState('idle');fail(e)}
  }
 
+ // Egy könyv több fejezettel is tartozhat egy altémához: könyvenként egy kártya.
+ const bookGroups=useMemo(()=>{
+  const m=new Map<string,Doc[]>();
+  for(const d of docs||[]){const k=d.id+':'+(d.category||'');const g=m.get(k);if(g)g.push(d);else m.set(k,[d])}
+  return [...m.values()];
+ },[docs]);
  async function openDoc(d:Doc){
   if(d.mime_type==='application/pdf'){
    const params=new URLSearchParams({doc:d.id});
@@ -341,7 +347,24 @@ export default function Tananyag(){
       <h2 className="us-label">Kinyitom a könyvben</h2>
       <div className="us-books">
        {docs===null&&<p className="us-status">Könyvek betöltése…</p>}
-       {docs?.map(d=>{const color=spineColor(d.id);return <button key={d.link_id||d.id} type="button" className="us-book" onClick={()=>void openDoc(d)}>
+       {bookGroups.map(g=>{const d=g[0];const color=spineColor(d.id);
+        const chapters=d.mime_type==='application/pdf'?g.filter(x=>x.pdf_page).sort((a,b)=>(a.pdf_page||0)-(b.pdf_page||0)):[];
+        if(chapters.length>1)return <div key={d.id+':'+(d.category||'')} className="us-book has-ch">
+         <span className="us-book-spine" style={{background:color}}/>
+         <span className="us-book-body">
+          <span className="us-book-kind" style={{color}}>{KIND[d.category||'reference']||'Anyag'}</span>
+          <span className="us-book-title">{d.title}</span>
+          <span className="us-book-where">{chapters.length} fejezet tartozik ehhez a témához. Koppints arra, amelyiket most tanítod.</span>
+          <span className="us-ch">
+           {chapters.map(c=><button key={c.link_id||c.pdf_page} type="button" className="us-ch-btn" onClick={()=>void openDoc(c)}>
+            <span className="us-ch-page">{c.pdf_page}. o.</span>
+            <span className="us-ch-title"><span>{c.chapter_title||'Fejezet'}</span></span>
+           </button>)}
+          </span>
+          <button type="button" className="us-book-open" onClick={()=>void openDoc(chapters[0])}>Kinyitom az első fejezetnél<Icon name="arrow" size={16} strokeWidth={2.2}/></button>
+         </span>
+        </div>;
+        return <button key={d.link_id||d.id} type="button" className="us-book" onClick={()=>void openDoc(chapters[0]||d)}>
         <span className="us-book-spine" style={{background:color}}/>
         <span className="us-book-body">
          <span className="us-book-kind" style={{color}}>{KIND[d.category||'reference']||'Anyag'}</span>
