@@ -8,6 +8,7 @@ export async function GET(request:NextRequest){
  const sql=database();const rows=await sql`SELECT storage_key,state FROM os_documents WHERE id=${id} AND owner_id=${owner}`;if(rows.length!==1||!rows[0].storage_key)throw Error('FORBIDDEN');
  const storage=s3();const key=String(rows[0].storage_key);
  await storage.send(new HeadObjectCommand({Bucket:bucket(),Key:key}));
- const url=await getSignedUrl(storage,new GetObjectCommand({Bucket:bucket(),Key:key}),{expiresIn:180});
- return Response.json({url,expiresIn:180})}catch(e){return apiError(e)}
+ const url=await getSignedUrl(storage,new GetObjectCommand({Bucket:bucket(),Key:key}),{expiresIn:3600});
+ // Egy tanóra alatt a PDF-olvasó újabb részeket kér le ugyanarról a címről, ezért egy órás érvényesség.
+ return Response.json({url,expiresIn:3600})}catch(e){return apiError(e)}
 }

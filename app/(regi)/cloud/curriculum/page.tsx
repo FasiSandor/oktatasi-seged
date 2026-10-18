@@ -1,7 +1,7 @@
 'use client';
 import {useEffect,useMemo,useState} from 'react';
 import Link from 'next/link';
-import {authenticatedJWT} from '../../../lib/auth-client';
+import {authenticatedJWT} from '../../../../lib/auth-client';
 
 type Lesson={name:string};
 type Group={id:string;name:string;lessons:string[]};

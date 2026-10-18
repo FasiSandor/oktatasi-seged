@@ -13,8 +13,8 @@
 ## Forrás-hierarchia és pontosság
 1. **NAT 2020**, a 5/2020. (I. 31.) Korm. rendelet szerinti 9–12. évfolyamos matematika-témakörök.
    https://njt.jog.gov.hu/jogszabaly/2020-5-20-22.0
-2. **2020-as NAT-hoz illeszkedő matematika kerettanterv**, a technikum helyi tantervében alkalmazott változat ellenőrzésével.
-   https://www.oktatas.hu/kozneveles/kerettantervek/2020_nat/kerettanterv_gimn_9_12_evf
+2. **A technikumi közismereti matematika kerettanterv** (a szakképzésért felelős hivatal kiadásában), az iskola helyi tantervében alkalmazott változat ellenőrzésével.
+   A korábban itt szereplő link a *gimnáziumi* kerettantervre mutatott, ezért eltávolítottam. A pontos technikumi forrás linkje ellenőrzésre vár.
 3. **Helyi tanterv / tanmenet** az adott iskolához – felhasználói feltöltés után ellenőrzendő, nem feltételezzük.
 4. **Az aktuális középszintű matematika érettségi részletes követelményei** – az adott vizsgaidőszakra külön ellenőrzendők.
 5. **Tankönyvek, feladatgyűjtemények** – könyvönkénti oldalszám és feladattípus; a curriculumtól független forrásréteg.

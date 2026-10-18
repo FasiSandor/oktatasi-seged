@@ -1,6 +1,6 @@
 'use client';
 import {useEffect,useRef,useState} from 'react';
-import {authenticatedJWT} from '../../lib/auth-client';
+import {authenticatedJWT} from '../../../lib/auth-client';
 type Mark={id:string;pdf_page:number;kind:'highlight'|'underline';color:'yellow'|'cyan'|'green';x:number;y:number;w:number;h:number};
 type Props={documentId:string;pdfUrl:string;page:number;onPageChange:(p:number)=>void};
 export default function PdfMarkup({documentId,pdfUrl,page,onPageChange}:Props){

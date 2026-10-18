@@ -1,7 +1,7 @@
 'use client';
 import {useEffect,useMemo,useState} from 'react';
 import Link from 'next/link';
-import {authenticatedJWT} from '../../../lib/auth-client';
+import {authenticatedJWT} from '../../../../lib/auth-client';
 type Video={id:string;title:string;url:string;provider:string;category:string;note:string;topic_id:string|null;topic_name:string|null};
 type Topic={id:string;name:string};
 function youtubeId(raw:string){try{const u=new URL(raw);const h=u.hostname.toLowerCase();if(h==='youtu.be')return /^[a-zA-Z0-9_-]{11}$/.test(u.pathname.slice(1))?u.pathname.slice(1):null;if(h==='youtube.com'||h==='www.youtube.com'||h==='m.youtube.com'||h==='youtube-nocookie.com'||h==='www.youtube-nocookie.com'){const id=u.pathname.startsWith('/shorts/')||u.pathname.startsWith('/embed/')?u.pathname.split('/')[2]:u.searchParams.get('v');return id&&/^[a-zA-Z0-9_-]{11}$/.test(id)?id:null}}catch{}return null}
