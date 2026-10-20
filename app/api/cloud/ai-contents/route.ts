@@ -19,7 +19,14 @@ export async function POST(req:NextRequest){
   if(!/^gemini-[a-z0-9.-]+$/.test(model))throw Error('INVALID');
   const parts:({text:string}|{inlineData:{mimeType:string;data:string}})[]=[{text:'You read Hungarian printed school textbook TABLE OF CONTENTS. Images are full PDF pages. Extract exact lesson titles and their PRINTED START PAGE, not the page number of the TOC itself. Two-column reading order: left column top-to-bottom, then right column top-to-bottom. Join hyphenated/wrapped multi-line titles. Ignore header/footer page numbers, book section footers, decorative numbers. Associate every lesson with its nearest main chapter heading from the TABLE OF CONTENTS, e.g. BEVEZETÉS A GEOMETRIÁBA, FÜGGVÉNYEK, EGYBEVÁGÓSÁG, NÉGYSZÖGEK. If the chapter is unclear, use an empty chapterTitle instead of guessing. Return JSON object {"lessons":[{"lessonNumber":39,"title":"A sík geometriája","printedPage":4,"chapterTitle":"Bevezetés a geometriába"}]} only. lessonNumber is the numeric lesson identifier printed at the LEFT of each lesson row, NOT the printed page number at the right; for entries marked R or without numbered lessons, omit lessonNumber. Include every row, do not stop after eight. Do not guess. Skip uncertain rows.'}];
   for(const image of images)parts.push({text:'PDF page '+image.page+' (table of contents image follows)'},{inlineData:{mimeType:'image/jpeg',data:image.data}});
-  const response=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(model)+':generateContent',{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key},body:JSON.stringify({contents:[{role:'user',parts}],generationConfig:{responseMimeType:'application/json',temperature:0,maxOutputTokens:8192}}),signal:AbortSignal.timeout(55000)});
+  let response:Response;
+  try{
+   response=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(model)+':generateContent',{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key},body:JSON.stringify({contents:[{role:'user',parts}],generationConfig:{responseMimeType:'application/json',temperature:0,maxOutputTokens:8192}}),signal:AbortSignal.timeout(50000)});
+  }catch(e){
+   await recordAiUsage(owner,'contents',model,undefined,false);
+   const slow=e instanceof Error&&(e.name==='TimeoutError'||e.name==='AbortError');
+   return Response.json({error:slow?'Az AI túl sokáig olvasta ezeket az oldalakat. Próbáld újra, vagy jelölj ki egyszerre kevesebb oldalt.':'Nem sikerült elérni az AI-t. Próbáld újra.'},{status:504});
+  }
   if(!response.ok){console.error('Gemini TOC HTTP',response.status);await recordAiUsage(owner,'contents',model,undefined,false);return Response.json({error:response.status===429?'Gemini kéréslimit. Próbáld meg később.':'A Gemini-feldolgozás nem sikerült (HTTP '+response.status+').'},{status:502})}
   const output=await response.json();
   await recordAiUsage(owner,'contents',model,output?.usageMetadata);

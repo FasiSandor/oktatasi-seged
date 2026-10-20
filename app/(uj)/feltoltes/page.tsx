@@ -278,11 +278,23 @@ function Feltoltes(){
   const chapters=rows.filter(r=>r.state==='open'&&!r.target).map(r=>({key:r.key,title:r.title,group:r.group}));
   if(!chapters.length){setAiState('done');return}
   setStatus(rows.length+' fejezetet találtam. Az AI most keresi a párjukat…');
-  api<{matches:{key:number;topicId:string;confidence:'high'|'low'}[]}>('ai-match',{method:'POST',body:JSON.stringify({subjectId,chapters})},60000)
+  // Kis adagokban (egy kérés legfeljebb kb. 1 perc lehet); a sikertelen adag nem állítja meg a többit.
+  (async()=>{
+   const all:{key:number;topicId:string;confidence:'high'|'low'}[]=[];let failed=0;
+   const size=40,parts=Math.ceil(chapters.length/size);
+   for(let i=0;i<parts;i++){
+    if(parts>1)setStatus(rows.length+' fejezetet találtam. Az AI keresi a párjukat: '+(i+1)+'. rész a '+parts+'-ből…');
+    try{
+     const r=await api<{matches:{key:number;topicId:string;confidence:'high'|'low'}[]}>('ai-match',{method:'POST',body:JSON.stringify({subjectId,chapters:chapters.slice(i*size,(i+1)*size)})},65000);
+     all.push(...r.matches);
+    }catch(e){if(e instanceof ApiError&&e.status===401)throw e;failed++;if(failed===parts)throw e}
+   }
+   return {matches:all,failed};
+  })()
    .then(r=>{
     const found=new Map(r.matches.map(m=>[m.key,m]));
     setRows(v=>v.map(row=>{const m=found.get(row.key);return m&&row.state==='open'&&!row.target&&topics.some(t=>t.id===m.topicId)?{...row,target:m.topicId,state:'suggested'}:row}));
-    setStatus(rows.length+' fejezetből '+(r.matches.length+rows.length-chapters.length)+' fejezethez találtam párt. Az AI javasol, te döntesz.');
+    setStatus(rows.length+' fejezetből '+(r.matches.length+rows.length-chapters.length)+' fejezethez találtam párt.'+(r.failed?' Egy része most nem sikerült, azokat válaszd ki kézzel.':'')+' Az AI javasol, te döntesz.');
     setAiState('done');
    })
    .catch(e=>{

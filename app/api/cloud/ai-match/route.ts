@@ -58,7 +58,15 @@ export async function POST(req:NextRequest){
    +'TANANYAGFA:\n'+lines.join('\n')+'\n\nFEJEZETEK:\n'+chapterLines.join('\n')+'\n\n'
    +'Válasz csak JSON: {"matches":[{"chapter":"C0","topic":"T5","confidence":"high"},{"chapter":"C1","topic":null}]}. Minden fejezet szerepeljen.';
 
-  const response=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(model)+':generateContent',{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key},body:JSON.stringify({contents:[{role:'user',parts:[{text:prompt}]}],generationConfig:{responseMimeType:'application/json',temperature:0,maxOutputTokens:16384}}),signal:AbortSignal.timeout(55000)});
+  let response:Response;
+  try{
+   response=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(model)+':generateContent',{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key},body:JSON.stringify({contents:[{role:'user',parts:[{text:prompt}]}],generationConfig:{responseMimeType:'application/json',temperature:0,maxOutputTokens:16384}}),signal:AbortSignal.timeout(50000)});
+  }catch(e){
+   // A Vercel egy kérésre kb. 1 percet ad: ha az AI addig nem végez, érthető üzenetet adunk.
+   await recordAiUsage(owner,forPlan?'plan':'match',model,undefined,false);
+   const slow=e instanceof Error&&(e.name==='TimeoutError'||e.name==='AbortError');
+   return Response.json({error:slow?'Az AI túl sokáig dolgozott ezen a részen. Próbáld újra.':'Nem sikerült elérni az AI-t. Próbáld újra.'},{status:504});
+  }
   if(!response.ok){console.error('Gemini match HTTP',response.status);await recordAiUsage(owner,forPlan?'plan':'match',model,undefined,false);return Response.json({error:response.status===429?'Gemini kéréslimit. Próbáld meg később.':'A Gemini-párosítás nem sikerült (HTTP '+response.status+').'},{status:502})}
   const output=await response.json();
   await recordAiUsage(owner,forPlan?'plan':'match',model,output?.usageMetadata);

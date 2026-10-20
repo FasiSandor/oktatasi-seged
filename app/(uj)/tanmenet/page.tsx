@@ -128,21 +128,28 @@ function Tanmenet(){
   }catch(e){setStatus('');fail(e)}finally{setBusy(false)}
  }
 
- // AI-javaslat a még üres órákhoz (legfeljebb 150 óra egy kérésben).
+ // AI-javaslat a még üres órákhoz. Kis adagokban küldjük (egy kérés legfeljebb kb. 1 perc lehet),
+ // és ha egy adag nem sikerül, a többi attól még megy tovább.
+ const PLAN_BATCH=30;
  async function suggest(){
   if(!plan||!lessons)return;
   const open=lessons.filter(l=>!draft[l.id]);
   if(!open.length){setToast('Minden órának van már témája.');return}
-  setBusy(true);const found=new Set<string>();const next={...draft};
+  setBusy(true);const found=new Set<string>();const next={...draft};let failed=0;
+  const parts=Math.ceil(open.length/PLAN_BATCH);
   try{
-   for(let i=0;i<open.length;i+=150){
-    const part=open.slice(i,i+150);
-    setStatus('Az AI párosítja az órákat a témákkal ('+Math.min(i+150,open.length)+' / '+open.length+')…');
-    const r=await api<{matches:{key:number;topicId:string}[]}>('ai-match',{method:'POST',body:JSON.stringify({subjectId:plan.subject_id,purpose:'plan',chapters:part.map(l=>({key:l.position,title:l.content.slice(0,400),group:l.month||undefined}))})},70000);
-    for(const m of r.matches){const l=part.find(x=>x.position===m.key);if(l){next[l.id]=m.topicId;found.add(l.id)}}
+   for(let i=0;i<parts;i++){
+    const part=open.slice(i*PLAN_BATCH,(i+1)*PLAN_BATCH);
+    setStatus('Az AI párosítja az órákat a témákkal: '+(i+1)+'. rész a '+parts+'-ből…');
+    try{
+     const r=await api<{matches:{key:number;topicId:string}[]}>('ai-match',{method:'POST',body:JSON.stringify({subjectId:plan.subject_id,purpose:'plan',chapters:part.map(l=>({key:l.position,title:l.content.slice(0,400),group:l.month||undefined}))})},65000);
+     for(const m of r.matches){const l=part.find(x=>x.position===m.key);if(l){next[l.id]=m.topicId;found.add(l.id)}}
+     // Részenként is látszódjon, mi lett kész.
+     setDraft({...next});setSuggested(new Set(found));setEditing(true);
+    }catch(e){if(e instanceof ApiError&&e.status===401)throw e;failed++}
    }
    setDraft(next);setSuggested(found);setEditing(true);
-   setStatus(found.size+' órához javasoltam témát. Nézd át, aztán mentsd.');
+   setStatus(found.size+' órához javasoltam témát.'+(failed?' '+failed+' rész most nem sikerült; a gombot újra megnyomva csak a még üres órákkal próbálkozom.':'')+' Nézd át, aztán mentsd.');
   }catch(e){setStatus('');fail(e)}finally{setBusy(false)}
  }
  async function saveAssignments(){

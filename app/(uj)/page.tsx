@@ -47,6 +47,10 @@ export default function Tananyag(){
  const [lastRead,setLastRead]=useState<LastRead|null>(null);
  const [subjectPlans,setSubjectPlans]=useState<{id:string;name:string;lessons:number}[]>([]);
  const searchBox=useRef<HTMLDivElement>(null);
+ const mainRef=useRef<HTMLElement>(null);
+ const sideRef=useRef<HTMLElement>(null);
+ // Telefonon (egymás alatt a lista és a könyvek) a választás után a könyvekhez görgetünk.
+ const scrollPending=useRef(false);
  const menuBox=useRef<HTMLDivElement>(null);
 
  const fail=useCallback((e:unknown)=>{
@@ -70,7 +74,7 @@ export default function Tananyag(){
  const backTopic=useRef(typeof window!=='undefined'?new URLSearchParams(window.location.search).get('topic')||'':'');
  useEffect(()=>{
   const id=backTopic.current;if(!id||!topics.length)return;
-  if(topics.some(t=>t.id===id)){setShowAll(true);setSelectedId(id)}
+  if(topics.some(t=>t.id===id)){setShowAll(true);setSelectedId(id);scrollPending.current=true}
   backTopic.current='';window.history.replaceState(null,'','/');
  },[topics]);
 
@@ -135,6 +139,19 @@ export default function Tananyag(){
  },[]);
  useEffect(()=>{if(selectedId&&topics.some(t=>t.id===selectedId))loadSelection(selectedId).catch(fail)},[selectedId,topics,loadSelection,fail]);
  useEffect(()=>{setEditBooks(false)},[selectedId]);
+
+ /** Görgetés úgy, hogy az elem a ragadós fejléc alá kerüljön. */
+ function scrollUnderHeader(el:HTMLElement|null){
+  if(!el)return;
+  const head=(document.querySelector('.us-top') as HTMLElement|null)?.offsetHeight||0;
+  window.scrollTo({top:el.getBoundingClientRect().top+window.scrollY-head-8,behavior:'smooth'});
+ }
+ // Ha a könyvek betöltődtek, és telefonon vagyunk, odaugrunk.
+ useEffect(()=>{
+  if(!scrollPending.current||rows===null)return;
+  scrollPending.current=false;
+  if(window.matchMedia('(max-width:900px)').matches)requestAnimationFrame(()=>scrollUnderHeader(mainRef.current));
+ },[rows]);
 
  async function run(work:()=>Promise<void>){setBusy(true);try{await work()}catch(e){fail(e)}finally{setBusy(false)}}
 
@@ -289,7 +306,7 @@ export default function Tananyag(){
  function pickHit(h:SearchHit){
   setHits(null);setQuery('');
   if(h.kind==='doc'){window.location.href='/olvaso?doc='+encodeURIComponent(h.id);return}
-  const go=()=>{setShowAll(true);setSelectedId(h.id)};
+  const go=()=>{setShowAll(true);setSelectedId(h.id);scrollPending.current=true};
   if(h.subject_id!==subjectId){setSubjectId(h.subject_id);setTimeout(go,0)}else go();
  }
  // A találat altémájának szülőjét is nyissuk ki.
@@ -346,7 +363,7 @@ export default function Tananyag(){
     </div>
    </section>
   </main>:<div className="us-body">
-   <aside className="us-side" aria-label="Témakörök">
+   <aside className="us-side" aria-label="Témakörök" ref={sideRef}>
     {lastRead&&<a className="us-continue" href={'/olvaso?doc='+encodeURIComponent(lastRead.document_id)+(lastRead.pdf_page?'&page='+lastRead.pdf_page:'')}>
      <span className="us-continue-spine" style={{background:spineColor(lastRead.document_id)}}/>
      <span className="us-continue-body"><small>Folytatás</small><b>{konyvCim(lastRead.title,lastRead.filename)}</b><small>{lastRead.pdf_page?lastRead.pdf_page+'. oldal':'az elejétől'}</small></span>
@@ -374,7 +391,7 @@ export default function Tananyag(){
         {curriculumReady&&<button type="button" className={'us-hours'+(hours?' is-set':'')} onClick={()=>setHours(t)} disabled={busy} aria-label={hours?t.name+': '+hours+' óra, módosítás':t.name+': óraszám megadása'}>{hours?hours+' óra':'óra?'}</button>}
        </div>
        {open&&<ul className="us-subs">
-        {subs.map(s=><li key={s.id}><button type="button" className="us-sub" aria-current={selectedId===s.id} onClick={()=>setSelectedId(s.id)}>
+        {subs.map(s=><li key={s.id}><button type="button" className="us-sub" aria-current={selectedId===s.id} onClick={()=>{setSelectedId(s.id);scrollPending.current=true}}>
          <span>{selectedId===s.id?<span className="us-marker">{s.name}</span>:s.name}</span>
         </button></li>)}
         <li><button type="button" className="us-btn us-btn-ghost" onClick={()=>addSub(t)} disabled={busy}><Icon name="plus" size={16}/>Altéma hozzáadása</button></li>
@@ -388,12 +405,13 @@ export default function Tananyag(){
     </div>
    </aside>
 
-   <main className="us-main">
+   <main className="us-main" ref={mainRef}>
     {!selected?<section className="us-empty">
      <h2>Válassz témát</h2>
      <p>Bal oldalt nyiss ki egy témakört, és koppints egy altémára. Itt látod majd, melyik könyvedben van meg, és egy érintéssel ott nyílik ki.</p>
     </section>:<>
      <div style={{display:'flex',flexDirection:'column',gap:6}}>
+      <button type="button" className="us-btn us-btn-ghost us-only-narrow us-to-list" onClick={()=>scrollUnderHeader(sideRef.current)}><Icon name="back" size={16} style={{transform:'rotate(90deg)'}}/>Vissza a témakörökhöz</button>
       <div className="us-crumb">{[subject?.name,grade+'. évfolyam',selectedParent?.name].filter(Boolean).join(' · ')}</div>
       <h1 className="us-title"><span className="us-marker">{selected.name}</span></h1>
      </div>

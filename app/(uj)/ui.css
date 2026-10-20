@@ -430,3 +430,5 @@ label.us-btn{cursor:pointer}
 .us-plan-link small{font-size:12px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--teal)}
 .us-plan-link b{font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .us-plan-link:hover b{background:linear-gradient(transparent 55%,var(--marker) 55%,var(--marker) 92%,transparent 92%)}
+.us-only-narrow{display:none}
+@media (max-width:900px){.us-only-narrow{display:inline-flex}.us-to-list{align-self:flex-start;margin-left:-12px}}
