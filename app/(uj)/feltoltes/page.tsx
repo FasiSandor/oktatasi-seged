@@ -8,6 +8,7 @@ import {detectOffset,guessContentsPages,openPdf,pageJpeg,thumbnail} from '../../
 import {suggestedTopicMatch} from '../../../lib/topic-matching';
 import {Icon,spineColor} from '../icons';
 import {konyvCim} from '../../../lib/konyv-cim';
+import {GRADE_CHOICES,LEVEL_LABEL,guessGrade,guessLevel} from '../../../lib/besorolas';
 import Belepes from '../Belepes';
 
 type Subject={id:string;name:string};
@@ -19,7 +20,9 @@ type Audit={numberedCount:number;range:number[]|null;missing:number[];duplicated
 
 const KINDS:[string,string][]=[['reference','Tankönyv'],['exercise','Feladatgyűjtemény'],['worksheet','Feladatlap'],['solution','Megoldókulcs'],['notes','Jegyzet'],['table','Függvénytáblázat']];
 const MIME:Record<string,string>={pdf:'application/pdf',jpg:'image/jpeg',jpeg:'image/jpeg',png:'image/png',webp:'image/webp',docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',xlsx:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',pptx:'application/vnd.openxmlformats-officedocument.presentationml.presentation'};
-const MAX_AI_PAGES=4;
+// Egy AI-kérés legfeljebb 4 oldalt kap; hosszabb tartalomjegyzéknél több körben olvassuk.
+const AI_BATCH=4;
+const MAX_AI_PAGES=12;
 
 export default function FeltoltesOldal(){
  return <Suspense fallback={<div className="us-login"><p className="us-status">Betöltés…</p></div>}><Feltoltes/></Suspense>;
@@ -46,6 +49,7 @@ function putFile(url:string,file:File,mime:string,onProgress:(pct:number)=>void)
 function Feltoltes(){
  const params=useSearchParams();
  const linkTopic=params.get('topicId')||'';
+ const reuseDoc=params.get('doc')||'';
  const [phase,setPhase]=useState<'checking'|'login'|'ready'>('checking');
  const [step,setStep]=useState<Step>('pick');
  const [subjects,setSubjects]=useState<Subject[]>([]);
@@ -54,6 +58,10 @@ function Feltoltes(){
  const [library,setLibrary]=useState<Doc[]>([]);
  const [kind,setKind]=useState('reference');
  const [title,setTitle]=useState('');
+ const [grade,setGrade]=useState('');
+ const [level,setLevel]=useState('');
+ const [contentsSaved,setContentsSaved]=useState<'idle'|'saved'|'pending-db'>('idle');
+ const [building,setBuilding]=useState(false);
  const [file,setFile]=useState<File|null>(null);
  const [progress,setProgress]=useState(0);
  const [docId,setDocId]=useState('');
@@ -89,6 +97,14 @@ function Feltoltes(){
    setSubjectId(s.subjects.find(x=>x.id===saved)?.id||s.subjects[0]?.id||'');
   })().catch(fail);
  },[phase,fail]);
+ // A Könyvtárból („Újrapárosítás”) érkezve rögtön az adott könyvvel indulunk.
+ const reuseStarted=useRef(false);
+ useEffect(()=>{
+  if(!reuseDoc||reuseStarted.current||!library.length||!subjectId)return;
+  const d=library.find(x=>x.id===reuseDoc&&x.mime_type==='application/pdf');
+  if(d){reuseStarted.current=true;void useExisting(d)}
+ // eslint-disable-next-line react-hooks/exhaustive-deps
+ },[reuseDoc,library,subjectId]);
  useEffect(()=>{
   if(!subjectId)return;
   api<{topics:Topic[]}>('topics?subjectId='+encodeURIComponent(subjectId)).then(r=>setTopics(r.topics)).catch(fail);
@@ -103,7 +119,12 @@ function Feltoltes(){
 
  function chooseFile(f:File|null){
   setFile(f);setError('');
-  if(f&&!title)setTitle(f.name.replace(/\.[a-z0-9]{2,5}$/i,'').replace(/[_-]+/g,' ').trim());
+  if(f&&!title){
+   const t=f.name.replace(/\.[a-z0-9]{2,5}$/i,'').replace(/[_-]+/g,' ').trim();
+   setTitle(t);
+   if(!grade){const g=guessGrade(f.name);if(g)setGrade(String(g))}
+   if(!level&&guessLevel(f.name))setLevel('emelt');
+  }
  }
 
  /** A PDF előkészítése: beépített könyvjelzők, majd a tartalomjegyzék-oldalak kiválasztása. */
@@ -122,7 +143,9 @@ function Feltoltes(){
   }catch{/* a helyi elemzés hibája nem akadály, jön az AI */}
   // 2. Különben a tanár kiválasztja a tartalomjegyzék oldalait.
   const n=opened.numPages;
-  const pages=[...new Set([...Array.from({length:Math.min(16,n)},(_,i)=>i+1),...Array.from({length:Math.min(8,n)},(_,i)=>n-7+i).filter(p=>p>16)])];
+  // Vastag könyvnél a tartalomjegyzék hosszabb is lehet: több első oldalt mutatunk.
+  const head=n>300?32:16;
+  const pages=[...new Set([...Array.from({length:Math.min(head,n)},(_,i)=>i+1),...Array.from({length:Math.min(8,n)},(_,i)=>n-7+i).filter(p=>p>head)])];
   setStep('contents');setThumbs([]);
   const guessed=await guessContentsPages(opened,pages);
   setPicked(guessed.slice(0,MAX_AI_PAGES));
@@ -131,6 +154,13 @@ function Feltoltes(){
    setThumbs(v=>[...v,{page:p,url}]);
   }
   setStatus(guessed.length?'Bejelöltem, ahol a TARTALOM szót láttam. Ellenőrizd.':'Koppints azokra az oldalakra, ahol a tartalomjegyzék van.');
+ }
+
+ /** Besorolás mentése (tantárgy, típus, évfolyam, szint). A 008-as frissítés előtt csendben kimarad. */
+ async function classify(id:string){
+  try{
+   await api('library',{method:'PATCH',body:JSON.stringify({id,subjectId:subjectId||null,kind,grade:grade?Number(grade):null,level:level||null})});
+  }catch(e){if(e instanceof ApiError&&e.status===401)throw e}
  }
 
  async function startUpload(){
@@ -147,6 +177,7 @@ function Feltoltes(){
    setProgress(100);setStatus('Ellenőrzés…');
    await api('upload/complete',{method:'POST',body:JSON.stringify({documentId:up.documentId})});
    setDocId(up.documentId);
+   await classify(up.documentId);
    if(mime!=='application/pdf'){
     if(linkTopic)await api('links',{method:'POST',body:JSON.stringify({topicId:linkTopic,documentId:up.documentId,category:kind,page:null})});
     setSavedCount(linkTopic?1:0);setStep('done');return;
@@ -189,12 +220,26 @@ function Feltoltes(){
   if(!pdf)return;
   setStep('reading');setStatus('A tartalomjegyzék oldalainak előkészítése…');
   try{
-   const images=[];
-   for(const p of picked)images.push({page:p,data:await pageJpeg(pdf,p)});
-   setStatus('A Gemini olvassa a tartalomjegyzéket…');
-   const data=await api<{lessons:{title:string;printedPage:number;chapterTitle?:string}[];diagnostics:Audit}>('ai-contents',{method:'POST',body:JSON.stringify({documentId:docId,images})},70000);
+   const lessons:{title:string;printedPage:number;chapterTitle?:string}[]=[];let diagnostics:Audit|null=null;
+   // Részletek: legfeljebb 4 oldal és kb. 3,5 MB kérésenként (a szerver egy kérésben 4,5 MB-ot fogad).
+   const groups:{page:number;data:string}[][]=[];let current:{page:number;data:string}[]=[];let size=0;
+   for(const p of picked){
+    const img={page:p,data:await pageJpeg(pdf,p)};
+    if(current.length&&(current.length>=AI_BATCH||size+img.data.length>3_500_000)){groups.push(current);current=[];size=0}
+    current.push(img);size+=img.data.length;
+   }
+   if(current.length)groups.push(current);
+   const batches=groups.length;
+   for(let b=0;b<batches;b++){
+    const images=groups[b];
+    setStatus(batches>1?'A Gemini olvassa a tartalomjegyzéket ('+(b+1)+'. rész a '+batches+'-ból)…':'A Gemini olvassa a tartalomjegyzéket…');
+    const data=await api<{lessons:{title:string;printedPage:number;chapterTitle?:string}[];diagnostics:Audit}>('ai-contents',{method:'POST',body:JSON.stringify({documentId:docId,images})},70000);
+    lessons.push(...(data.lessons||[]));
+    // Több részletnél a számozás-ellenőrzés részletenként nem mérvadó, csak egy résznél mutatjuk.
+    diagnostics=batches===1?data.diagnostics:null;
+   }
    const seen=new Set<string>();const found:{title:string;page:number;group:string}[]=[];
-   for(const item of data.lessons||[]){
+   for(const item of lessons){
     const name=item.title.replace(/\s+/g,' ').trim().replace(/^(?:\d{1,3}|R)\s+/,'');
     const page=item.printedPage+shift;
     const key=name.toLocaleLowerCase('hu')+':'+page;
@@ -203,7 +248,7 @@ function Feltoltes(){
    }
    if(!found.length)throw new Error('A Gemini nem talált fejezetet ezeken az oldalakon. Válassz más oldalakat.');
    found.sort((a,b)=>a.page-b.page);
-   setAudit(data.diagnostics);buildRows(found);
+   setAudit(diagnostics);buildRows(found);
    setStatus(found.length+' fejezetet találtam. Az AI javasol, te döntesz.');setStep('match');
   }catch(e){setStep('contents');fail(e)}
  }
@@ -289,7 +334,54 @@ function Feltoltes(){
     count++;
    }
    setSavedCount(count);setStep('done');
+   void saveContents();
   }catch(e){setSavedCount(count);setStep('match');fail(e)}
+ }
+
+ /** A könyv teljes tartalomjegyzéke (a kihagyott fejezetekkel együtt), hogy a Könyvtárban is lapozható legyen. */
+ async function saveContents(){
+  if(!docId||!rows.length)return;
+  try{
+   await api('library',{method:'PATCH',body:JSON.stringify({id:docId,contents:rows.map(r=>({title:r.title,page:r.page,group:r.group}))})});
+   setContentsSaved('saved');
+  }catch(e){
+   if(e instanceof ApiError&&e.status===409){setContentsSaved('pending-db');return}
+   if(e instanceof ApiError&&e.status===401)fail(e);
+  }
+ }
+
+ /**
+  * Témamutató a könyv tartalomjegyzékéből: a fejezetcsoportokból témakörök, a fejezetekből altémák.
+  * Ha nincsenek csoportok, minden fejezet külön témakör lesz. A már meglévő, azonos nevű témát újrahasználja.
+  */
+ async function buildIndex(){
+  if(!subjectId||!rows.length)return;
+  const active=rows.filter(r=>r.state!=='skipped');
+  const grouped=active.some(r=>r.group);
+  const items:{name:string;children:string[]}[]=[];
+  if(grouped){
+   for(const r of active){
+    const name=(r.group||'Egyéb').slice(0,120);
+    const last=items[items.length-1];
+    if(last&&last.name===name)last.children.push(r.title.slice(0,120));
+    else items.push({name,children:[r.title.slice(0,120)]});
+   }
+  }else for(const r of active)items.push({name:r.title.slice(0,120),children:[]});
+  const what=grouped?items.length+' témakört és alattuk '+active.length+' altémát':active.length+' témakört';
+  if(!window.confirm('A tartalomjegyzékből '+what+' veszek fel a(z) „'+(subjects.find(x=>x.id===subjectId)?.name||'')+'” tantárgyba, és a fejezeteket hozzájuk kötöm. A meglévő témáidat nem módosítom. Mehet?'))return;
+  setBuilding(true);setError('');
+  try{
+   const r=await api<{items:{id:string;name:string;children:{id:string;name:string}[]}[];topics:Topic[]}>('topics/bulk',{method:'POST',body:JSON.stringify({subjectId,items})},60000);
+   setTopics(r.topics);
+   // Minden fejezet a saját altémájához (csoport nélkül a saját témaköréhez) kerül, jóváhagyva.
+   let i=0;const target=new Map<number,string>();
+   if(grouped){
+    for(const it of r.items)for(const c of it.children){const row=active[i++];if(row)target.set(row.key,c.id)}
+   }else r.items.forEach((it,k)=>{const row=active[k];if(row)target.set(row.key,it.id)});
+   setRows(v=>v.map(row=>target.has(row.key)?{...row,target:target.get(row.key)!,state:'approved',picked:false}:row));
+   setAiState('done');
+   setStatus('Felvettem a témákat, és minden fejezetet a helyére tettem. Nézd át, aztán mentsd.');
+  }catch(e){fail(e)}finally{setBuilding(false)}
  }
 
  if(phase==='checking')return <div className="us-login"><p className="us-status">Betöltés…</p></div>;
@@ -331,7 +423,10 @@ function Feltoltes(){
       <label className="us-field">A könyv címe<input value={title} onChange={e=>setTitle(e.target.value)} placeholder="pl. OH Matematika 10." maxLength={160}/></label>
       <label className="us-field">Típusa<select className="up-select" value={kind} onChange={e=>setKind(e.target.value)}>{KINDS.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>
       <label className="us-field">Tantárgy<select className="up-select" value={subjectId} onChange={e=>{setSubjectId(e.target.value);localPrefs.set('us-subject',e.target.value)}}>{subjects.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
+      <label className="us-field">Évfolyam<select className="up-select" value={grade} onChange={e=>setGrade(e.target.value)}><option value="">Nincs megadva</option>{GRADE_CHOICES.map(g=><option key={g} value={g}>{g}.</option>)}</select></label>
+      <label className="us-field">Szint<select className="up-select" value={level} onChange={e=>setLevel(e.target.value)}><option value="">Nincs megadva</option>{Object.entries(LEVEL_LABEL).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>
      </div>
+     <p className="pg-hint" style={{margin:0}}>Az évfolyam alapján rendezem a témaoldalon a könyveket. Több évfolyamos könyvnél hagyd üresen. Word-könyvet PDF-be exportálva tölts fel (Macen: Fájl → Exportálás → PDF), úgy oldalra is ugrik.</p>
      <label className="up-drop">
       <input type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.docx,.xlsx,.pptx,application/pdf" onChange={e=>chooseFile(e.currentTarget.files?.[0]||null)}/>
       <span className="up-drop-icon"><Icon name="upload" size={24}/></span>
@@ -360,7 +455,7 @@ function Feltoltes(){
        <img src={t.url} alt={t.page+'. PDF-oldal'}/>
        <span>{t.page}.</span>
       </button>)}
-      {pdf&&thumbs.length<Math.min(24,pdf.numPages)&&<p className="us-status">Előnézetek készítése…</p>}
+      {pdf&&thumbs.length<Math.min(pdf.numPages>300?40:24,pdf.numPages)&&<p className="us-status">Előnézetek készítése…</p>}
      </div>
      <div className="up-actions"><span>{picked.length?picked.length+' oldal kijelölve':'Még nincs kijelölt oldal'}</span><button type="button" className="us-btn us-btn-dark" disabled={!picked.length} onClick={()=>void confirmContents()}>Tartalomjegyzék kiolvasása<Icon name="arrow" size={16}/></button></div>
     </section>}
@@ -384,6 +479,10 @@ function Feltoltes(){
     {step==='match'&&<section className="up-card up-match">
      <div className="up-match-head"><h2>Hova kerüljenek a fejezetek?</h2><span className="us-status">{status}</span></div>
      {audit&&(audit.missing.length>0||audit.duplicated.length>0)&&<p className="up-warn">A fejezetszámozásban {audit.missing.length?'hiány van ('+audit.missing.join(', ')+')':''}{audit.missing.length&&audit.duplicated.length?', és ':''}{audit.duplicated.length?'ismétlődés van ('+audit.duplicated.join(', ')+')':''}. Lehet, hogy egy tartalomjegyzék-oldal kimaradt.</p>}
+     {(topics.length===0||rows.every(r=>!r.target))&&rows.length>0&&<div className="pg-tip" style={{margin:'12px 20px 0'}}>
+      <span>{topics.length===0?'Ennek a tantárgynak még nincs témamutatója. Felépíthetem ennek a könyvnek a tartalomjegyzékéből, és a fejezeteket rögtön a helyükre teszem.':'Egyik fejezetnek sem találtam párt. Ha ez a könyv új területet fed le, a tartalomjegyzékéből felvehetem a témákat.'}</span>
+      <button type="button" className="us-btn us-btn-dark" disabled={building||!subjectId} onClick={()=>void buildIndex()}>{building?'Felvétel…':'Témamutató a tartalomjegyzékből'}</button>
+     </div>}
      {aiState==='running'&&<div className="up-ai-busy" role="status"><span className="up-ai-bar" aria-hidden="true"/><span>Az AI a tananyagfádban keresi a fejezetek párját. Ez fél percig is eltarthat.</span></div>}
      <div className="up-table" role="table" aria-label="Fejezetek párosítása" aria-busy={aiState==='running'}>
       <div className="up-tr up-th" role="row"><span role="columnheader">A könyvben</span><span role="columnheader">Nálad, a tananyagfában</span><span role="columnheader" style={{textAlign:'right'}}>Döntés</span></div>
@@ -432,7 +531,9 @@ function Feltoltes(){
     {step==='done'&&<section className="up-card">
      <h2>Kész</h2>
      <p className="us-status">{savedCount?savedCount+' helyen kapcsoltam a könyvet a témáidhoz. A tananyagban rányomsz a témára, és ott nyílik ki.':'A fájl a könyvtáradban van. Témához később is rendelheted.'}</p>
-     <div className="up-actions"><a className="us-btn us-btn-dark" href="/">Vissza a tananyaghoz</a><button type="button" className="us-btn" onClick={()=>{setStep('pick');setFile(null);setTitle('');setDocId('');setRows([]);setThumbs([]);setPicked([]);setAudit(null);setStatus('');setSavedCount(0)}}>Másik könyv</button></div>
+     {contentsSaved==='saved'&&<p className="us-status" style={{margin:0}}>A teljes tartalomjegyzéket is elmentettem, a Könyvtárban lapozható.</p>}
+     {contentsSaved==='pending-db'&&<p className="up-warn">A teljes tartalomjegyzék és a besorolás mentéséhez a 008-as adatbázis-frissítés kell. A párosítás ettől függetlenül elmentődött.</p>}
+     <div className="up-actions"><a className="us-btn" href="/konyvtar">Könyvtár</a><a className="us-btn us-btn-dark" href="/">Vissza a tananyaghoz</a><button type="button" className="us-btn" onClick={()=>{setStep('pick');setFile(null);setTitle('');setGrade('');setLevel('');setContentsSaved('idle');setDocId('');setRows([]);setThumbs([]);setPicked([]);setAudit(null);setStatus('');setSavedCount(0)}}>Másik könyv</button></div>
     </section>}
    </main>
   </div>

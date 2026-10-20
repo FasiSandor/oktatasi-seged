@@ -55,6 +55,14 @@ export function s3(){
  return new S3Client({region:process.env.S3_REGION||'eu-central-1',endpoint,forcePathStyle:true,requestChecksumCalculation:'WHEN_REQUIRED',credentials:{accessKeyId,secretAccessKey}});
 }
 export function bucket(){const name=process.env.S3_BUCKET;if(!name)throw new Error('S3_BUCKET is missing');return name}
+/** Igaz, ha a hiba oka egy még le nem futtatott adatbázis-frissítés (hiányzó oszlop vagy tábla). */
+export function schemaMissing(e:unknown){
+ const err=e as {code?:string;message?:string}|null;
+ const code=err?.code||'',message=err?.message||'';
+ return code==='42703'||code==='42P01'||/column .* does not exist|relation .* does not exist/i.test(message);
+}
+export const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export const isUuid=(v:unknown):v is string=>typeof v==='string'&&UUID.test(v);
 export function apiError(e:unknown){
  const message=e instanceof Error?e.message:'';
  if(message==='UNAUTHORIZED')return Response.json({error:'Unauthorized'},{status:401});

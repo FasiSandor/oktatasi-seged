@@ -4,12 +4,12 @@ import {api,ApiError,hasSession,localPrefs,signOut} from '../../lib/client-api';
 import {Icon,spineColor} from './icons';
 import {konyvCim} from '../../lib/konyv-cim';
 import Belepes from './Belepes';
+import Temaoldal,{type LinkRow,type VideoRow} from './Temaoldal';
 
 type Subject={id:string;name:string};
 type Topic={id:string;name:string;parent_id:string|null;position:number};
 type Profile={id:string;name:string;grade_from:number;grade_to:number};
 type Placement={id:string;topic_id:string;grade:number;suggested_minutes:number|null};
-type Doc={id:string;title:string;filename:string;mime_type:string;link_id?:string;pdf_page?:number|null;chapter_title?:string|null;category?:string};
 type Tool={id:string;label:string;url:string;provider:string};
 type Workspace={notes:string;questions:{question:string;answer:string}[]};
 type LastRead={document_id:string;pdf_page:number|null;title:string;filename:string|null};
@@ -18,7 +18,6 @@ type SearchHit={kind:'topic';id:string;name:string;subject_id:string;subject_nam
 /** Egy tanóra 45 perc: az adatbázis percben tárolja az ajánlott időt. */
 const LESSON_MINUTES=45;
 const GRADES=[9,10,11,12];
-const KIND:Record<string,string>={reference:'Tankönyv',exercise:'Feladatgyűjtemény',worksheet:'Feladatlap',solution:'Megoldókulcs',notes:'Jegyzet',table:'Függvénytáblázat'};
 
 export default function Tananyag(){
  const [phase,setPhase]=useState<'checking'|'login'|'ready'>('checking');
@@ -32,7 +31,9 @@ export default function Tananyag(){
  const [showAll,setShowAll]=useState(false);
  const [openId,setOpenId]=useState('');
  const [selectedId,setSelectedId]=useState('');
- const [docs,setDocs]=useState<Doc[]|null>(null);
+ const [rows,setRows]=useState<LinkRow[]|null>(null);
+ const [videos,setVideos]=useState<VideoRow[]>([]);
+ const [topicGrades,setTopicGrades]=useState<Map<string,number[]>>(new Map());
  const [tools,setTools]=useState<Tool[]>([]);
  const [workspace,setWorkspace]=useState<Workspace|null>(null);
  const [notesDraft,setNotesDraft]=useState('');
@@ -73,8 +74,11 @@ export default function Tananyag(){
  },[topics]);
 
  const loadCurriculum=useCallback(async(id:string)=>{
-  const [t]=await Promise.all([api<{topics:Topic[]}>('topics?subjectId='+encodeURIComponent(id))]);
-  setTopics(t.topics);
+  const [t,g]=await Promise.all([
+   api<{topics:Topic[]}>('topics?subjectId='+encodeURIComponent(id)),
+   api<{topics:{topic_id:string;grades:number[]}[]}>('topic-grades?subjectId='+encodeURIComponent(id)).catch(e=>{if(e instanceof ApiError&&e.status===401)throw e;return {topics:[]}})
+  ]);
+  setTopics(t.topics);setTopicGrades(new Map(g.topics.map(x=>[x.topic_id,x.grades])));
   try{
    const p=await api<{profiles:Profile[]}>('curriculum?subjectId='+encodeURIComponent(id));
    const first=p.profiles[0]||null;setProfile(first);setCurriculumReady(true);
@@ -93,7 +97,7 @@ export default function Tananyag(){
   const prefs=localPrefs.get<{grade?:number;open?:string;selected?:string}>('us-view-'+subjectId,{});
   setGrade(GRADES.includes(prefs.grade||0)?prefs.grade!:9);
   setOpenId(prefs.open||'');setSelectedId(prefs.selected||'');setShowAll(false);
-  setTopics([]);setDocs(null);
+  setTopics([]);setRows(null);setTopicGrades(new Map());
   loadCurriculum(subjectId).catch(fail);
  },[subjectId,loadCurriculum,fail]);
 
@@ -102,20 +106,25 @@ export default function Tananyag(){
  const mains=useMemo(()=>topics.filter(t=>!t.parent_id||!topics.some(p=>p.id===t.parent_id)),[topics]);
  const childrenOf=useCallback((id:string)=>topics.filter(t=>t.parent_id===id),[topics]);
  const minutesFor=useCallback((topicId:string,g:number)=>placements.filter(p=>p.topic_id===topicId&&p.grade===g).reduce((sum,p)=>sum+(p.suggested_minutes||0),0),[placements]);
- const inGrade=useCallback((t:Topic,g:number)=>placements.some(p=>p.grade===g&&(p.topic_id===t.id||childrenOf(t.id).some(c=>c.id===p.topic_id))),[placements,childrenOf]);
- const gradeHasPlan=placements.some(p=>p.grade===grade);
+ // Egy témakör akkor tartozik egy évfolyamhoz, ha óraszámot adtál meg rá,
+ // vagy ha az adott évfolyamú könyvben szerepel (a témakör vagy valamelyik altémája).
+ const inGrade=useCallback((t:Topic,g:number)=>{
+  const ids=[t.id,...childrenOf(t.id).map(c=>c.id)];
+  return placements.some(p=>p.grade===g&&ids.includes(p.topic_id))||ids.some(id=>(topicGrades.get(id)||[]).includes(g));
+ },[placements,childrenOf,topicGrades]);
+ const gradeHasPlan=mains.some(t=>inGrade(t,grade));
  const visible=showAll||!gradeHasPlan?mains:mains.filter(t=>inGrade(t,grade));
  const selected=topics.find(t=>t.id===selectedId)||null;
  const selectedParent=selected?.parent_id?topics.find(t=>t.id===selected.parent_id)||null:null;
  const subject=subjects.find(s=>s.id===subjectId)||null;
 
  const loadSelection=useCallback(async(topicId:string)=>{
-  setDocs(null);setTools([]);setWorkspace(null);setNotesDraft('');setNotesState('idle');
+  setRows(null);setVideos([]);setTools([]);setWorkspace(null);setNotesDraft('');setNotesState('idle');
   const [d,t]=await Promise.all([
-   api<{documents:Doc[]}>('documents?topicId='+encodeURIComponent(topicId)),
+   api<{links:LinkRow[];videos:VideoRow[]}>('topic-page?topicId='+encodeURIComponent(topicId)),
    api<{tools:Tool[]}>('tools?topicId='+encodeURIComponent(topicId))
   ]);
-  setDocs(d.documents);setTools(t.tools);
+  setRows(d.links);setVideos(d.videos);setTools(t.tools);
   try{
    const w=await api<{workspace:Workspace}>('lesson-workspace?topicId='+encodeURIComponent(topicId));
    setWorkspace(w.workspace);setNotesDraft(w.workspace.notes||'');
@@ -217,7 +226,7 @@ export default function Tananyag(){
   }catch(e){setNotesState('idle');fail(e)}
  }
 
- function renameBook(d:Doc){
+ function renameBook(d:LinkRow){
   const current=konyvCim(d.title,d.filename);
   const answer=window.prompt('A könyv új címe:',current);
   if(answer===null)return;
@@ -226,32 +235,27 @@ export default function Tananyag(){
   if(title.length>160){setToast('Legfeljebb 160 karakter lehet a cím.');return}
   void run(async()=>{
    await api('documents',{method:'PATCH',body:JSON.stringify({id:d.id,title})});
-   setDocs(v=>v?v.map(x=>x.id===d.id?{...x,title}:x):v);
+   setRows(v=>v?v.map(x=>x.id===d.id?{...x,title}:x):v);
    setLastRead(v=>v&&v.document_id===d.id?{...v,title}:v);
    setToast('Átneveztem: '+title);
   });
  }
- function unlink(d:Doc){
+ function unlink(d:LinkRow){
   if(!selected||!d.link_id)return;
   const what=d.chapter_title?'„'+d.chapter_title+'” ('+d.pdf_page+'. oldal)':d.pdf_page?d.pdf_page+'. oldal':'ez a könyv';
-  if(!window.confirm('Leveszem a(z) „'+selected.name+'” témáról: '+what+'. A könyv a könyvtárban marad, csak ez a párosítás törlődik. Mehet?'))return;
+  if(!window.confirm('Leveszem a(z) „'+d.topic_name+'” témáról: '+what+'. A könyv a könyvtárban marad, csak ez a párosítás törlődik. Mehet?'))return;
   void run(async()=>{
-   await api('links?id='+encodeURIComponent(d.link_id!),{method:'DELETE'});
-   setDocs(v=>v?v.filter(x=>x.link_id!==d.link_id):v);
+   await api('links?id='+encodeURIComponent(d.link_id),{method:'DELETE'});
+   setRows(v=>v?v.filter(x=>x.link_id!==d.link_id):v);
   });
  }
 
- // Egy könyv több fejezettel is tartozhat egy altémához: könyvenként egy kártya.
- const bookGroups=useMemo(()=>{
-  const m=new Map<string,Doc[]>();
-  for(const d of docs||[]){const k=d.id+':'+(d.category||'');const g=m.get(k);if(g)g.push(d);else m.set(k,[d])}
-  return [...m.values()];
- },[docs]);
- async function openDoc(d:Doc){
+ async function openDoc(d:LinkRow){
   if(d.mime_type==='application/pdf'){
    const params=new URLSearchParams({doc:d.id});
    if(d.pdf_page)params.set('page',String(d.pdf_page));
-   if(selected){params.set('topic',selected.id);params.set('label',selected.name)}
+   // Az olvasó a fejezet saját (al)témájához tér vissza, és annak könyveit mutatja fülként.
+   if(selected){params.set('topic',d.topic_id||selected.id);params.set('label',d.depth>0?d.topic_name:selected.name)}
    window.location.href='/olvaso?'+params.toString();
    return;
   }
@@ -312,13 +316,16 @@ export default function Tananyag(){
     </div>}
    </div>
    <a href={'/feltoltes'+(selected?'?topicId='+encodeURIComponent(selected.id):'')} className="us-btn us-btn-teal"><Icon name="upload" size={18}/>Feltöltés</a>
-   <div style={{position:'relative'}} ref={menuBox}>
+   <div className="us-account" style={{position:'relative'}} ref={menuBox}>
     <button type="button" className="us-avatar" aria-label="Fiók és beállítások" aria-expanded={menuOpen} onClick={()=>setMenuOpen(v=>!v)}><Icon name="user" size={20}/></button>
     {menuOpen&&<div className="us-menu">
      <a href="/feltoltes">Új könyv feltöltése</a>
-     <a href="/cloud">Könyvtár (régi nézet)</a>
-     <a href="/cloud/curriculum">Tananyagfa szerkesztése</a>
+     <a href="/konyvtar">Könyvtár</a>
+     <a href="/beallitasok">Beállítások</a>
      <a href="/cloud/videos">Videótár</a>
+     <hr/>
+     <a href="/cloud/curriculum">Tananyagfa (régi nézet)</a>
+     <a href="/cloud">Könyvtár (régi nézet)</a>
      <hr/>
      <button type="button" onClick={()=>{void signOut().then(()=>setPhase('login'))}}>Kijelentkezés</button>
     </div>}
@@ -349,7 +356,7 @@ export default function Tananyag(){
      <small>{showAll||!gradeHasPlan?'mind':grade+'. évfolyam'}</small>
     </div>
     {!curriculumReady&&<p className="us-note">Az óraszámok és évfolyamok mentése még nincs bekapcsolva az adatbázisban. A könyvek ettől függetlenül megnyithatók.</p>}
-    {curriculumReady&&!gradeHasPlan&&mains.length>0&&<p className="us-note">A {grade}. évfolyamhoz még nincs témakör rendelve. Koppints egy témakör óraszámára, és az bekerül ebbe az évfolyamba.</p>}
+    {!gradeHasPlan&&mains.length>0&&<p className="us-note">A {grade}. évfolyamhoz még nincs könyv vagy óraszám rendelve, ezért minden témakört mutatok. Ha egy könyvnél megadod az évfolyamot (Könyvtár), a témái itt megjelennek.</p>}
     <ul className="us-topics">
      {visible.map((t,i)=>{
       const open=openId===t.id;const subs=childrenOf(t.id);const minutes=minutesFor(t.id,grade);const hours=Math.round(minutes/LESSON_MINUTES);
@@ -388,60 +395,15 @@ export default function Tananyag(){
 
      <section style={{display:'flex',flexDirection:'column',gap:12}} aria-label="Könyvek">
       <div className="us-books-head">
-       <h2 className="us-label">{editBooks&&bookGroups.length?'Könyvek szerkesztése':'Kinyitom a könyvben'}</h2>
-       {bookGroups.length>0&&<button type="button" className="us-btn us-btn-ghost" aria-pressed={editBooks} onClick={()=>setEditBooks(v=>!v)}>{editBooks?'Kész':'Szerkesztés'}</button>}
+       <h2 className="us-label">{editBooks&&rows?.length?'Könyvek szerkesztése':'Kinyitom a könyvben'}</h2>
+       {!!rows?.length&&<button type="button" className="us-btn us-btn-ghost" aria-pressed={editBooks} onClick={()=>setEditBooks(v=>!v)}>{editBooks?'Kész':'Szerkesztés'}</button>}
       </div>
-      {editBooks&&bookGroups.length>0&&<p className="us-status" style={{margin:0}}>Itt átnevezheted a könyvet, és leveheted a rossz párosítást erről a témáról. A könyv a könyvtárban marad.</p>}
-      <div className="us-books">
-       {docs===null&&<p className="us-status">Könyvek betöltése…</p>}
-       {bookGroups.map(g=>{const d=g[0];const color=spineColor(d.id);
-        const chapters=d.mime_type==='application/pdf'?g.filter(x=>x.pdf_page).sort((a,b)=>(a.pdf_page||0)-(b.pdf_page||0)):[];
-        if(editBooks){const rows=[...g].sort((a,b)=>(a.pdf_page||0)-(b.pdf_page||0));
-         return <div key={d.id+':'+(d.category||'')} className={'us-book is-edit'+(rows.length>1?' has-ch':'')}>
-          <span className="us-book-spine" style={{background:color}}/>
-          <span className="us-book-body">
-           <span className="us-book-kind" style={{color}}>{KIND[d.category||'reference']||'Anyag'}</span>
-           <span className="us-book-title">{konyvCim(d.title,d.filename)}</span>
-           <button type="button" className="us-btn us-btn-ghost us-edit-rename" onClick={()=>renameBook(d)} disabled={busy}><Icon name="pen" size={16}/>Átnevezés</button>
-           <span className="us-ch">
-            {rows.map(c=><span key={c.link_id||c.pdf_page||0} className="us-ch-edit">
-             <span className="us-ch-page">{c.pdf_page?c.pdf_page+'. o.':'eleje'}</span>
-             <span className="us-ch-title">{c.chapter_title||(c.pdf_page?'Fejezet':'Az egész könyv')}</span>
-             <button type="button" className="us-icon-btn" aria-label={'Levétel erről a témáról: '+(c.chapter_title||c.pdf_page||'')} onClick={()=>unlink(c)} disabled={busy||!c.link_id}><Icon name="trash" size={16}/></button>
-            </span>)}
-           </span>
-          </span>
-         </div>}
-        if(chapters.length>1)return <div key={d.id+':'+(d.category||'')} className="us-book has-ch">
-         <span className="us-book-spine" style={{background:color}}/>
-         <span className="us-book-body">
-          <span className="us-book-kind" style={{color}}>{KIND[d.category||'reference']||'Anyag'}</span>
-          <span className="us-book-title">{konyvCim(d.title,d.filename)}</span>
-          <span className="us-book-where">{chapters.length} fejezet tartozik ehhez a témához. Koppints arra, amelyiket most tanítod.</span>
-          <span className="us-ch">
-           {chapters.map(c=><button key={c.link_id||c.pdf_page} type="button" className="us-ch-btn" onClick={()=>void openDoc(c)}>
-            <span className="us-ch-page">{c.pdf_page}. o.</span>
-            <span className="us-ch-title"><span>{c.chapter_title||'Fejezet'}</span></span>
-           </button>)}
-          </span>
-          <button type="button" className="us-book-open" onClick={()=>void openDoc(chapters[0])}>Kinyitom az első fejezetnél<Icon name="arrow" size={16} strokeWidth={2.2}/></button>
-         </span>
-        </div>;
-        return <button key={d.link_id||d.id} type="button" className="us-book" onClick={()=>void openDoc(chapters[0]||d)}>
-        <span className="us-book-spine" style={{background:color}}/>
-        <span className="us-book-body">
-         <span className="us-book-kind" style={{color}}>{KIND[d.category||'reference']||'Anyag'}</span>
-         <span className="us-book-title">{konyvCim(d.title,d.filename)}</span>
-         <span className="us-book-where">{d.mime_type==='application/pdf'?(d.pdf_page?'A témánál nyílik ki':'Még nincs megadva a hely, az elején nyílik'):'Eredeti fájl megnyitása'}</span>
-         <span className="us-book-open">Kinyitom<Icon name="arrow" size={16} strokeWidth={2.2}/></span>
-        </span>
-       </button>})}
-       <a className="us-book-add" href={'/feltoltes?topicId='+encodeURIComponent(selected.id)}>
-        <span><Icon name="plus" size={22}/></span>
-        <b>Könyv vagy feladatgyűjtemény</b>
-        <small>Feltöltés vagy hozzárendelés ehhez a témához</small>
-       </a>
-      </div>
+      {editBooks&&!!rows?.length&&<p className="us-status" style={{margin:0}}>Itt átnevezheted a könyvet, megadhatod az évfolyamát és szintjét (Besorolás), és leveheted a rossz párosítást. A könyv a könyvtárban marad.</p>}
+      <Temaoldal rows={rows} videos={videos} editing={editBooks} busy={busy} onOpen={r=>void openDoc(r)} onRename={renameBook} onUnlink={unlink}/>
+      <a className="us-book-add us-book-add-row" href={'/feltoltes?topicId='+encodeURIComponent(selected.id)}>
+       <span><Icon name="plus" size={20}/></span>
+       <span><b>Könyv vagy feladatgyűjtemény</b><small>Feltöltés vagy hozzárendelés ehhez a témához</small></span>
+      </a>
      </section>
 
      <div className="us-panels">
