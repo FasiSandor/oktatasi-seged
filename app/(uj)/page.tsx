@@ -304,7 +304,7 @@ export default function Tananyag(){
 
  return <div className="us-app">
   <header className="us-top">
-   <a href="/" className="us-brand"><span className="us-logo"><Icon name="book" size={22} stroke="#fff" strokeWidth={1.8}/></span><span className="us-brand-text">Oktatási Segéd</span></a>
+   <a href="/" className="us-brand" title="Főoldal"><span className="us-logo"><Icon name="book" size={22} stroke="#fff" strokeWidth={1.8}/></span><span className="us-brand-text">Oktatási Segéd</span></a>
    <nav className="us-subjects" aria-label="Tantárgy">
     {subjects.map(s=><button key={s.id} type="button" className="us-pill" aria-pressed={s.id===subjectId} onClick={()=>setSubjectId(s.id)}>{s.name}</button>)}
     <button type="button" className="us-pill us-pill-add" aria-label="Új tantárgy" onClick={addSubject} disabled={busy}><Icon name="plus" size={18}/></button>

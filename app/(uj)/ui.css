@@ -544,9 +544,6 @@ label.us-btn{cursor:pointer}
  .us-top .us-search{flex:1 1 200px;min-width:160px}
  .rd-top{gap:10px}
 }
-@media (min-width:721px) and (max-width:920px){
- .us-brand-text{display:none}
-}
 @media (max-width:720px){
  .rd-right{flex:1 1 100%;order:10}
  .rd-right.is-kompakt{flex:0 0 auto;order:0}
@@ -554,3 +551,7 @@ label.us-btn{cursor:pointer}
 }
 .fl-card.is-found{box-shadow:0 0 0 3px var(--marker)}
 .ks-kompakt input::-webkit-search-cancel-button{display:none}
+
+/* A menüben az éppen nyitott oldal kiemelve, hogy látszódjon, hol vagy. */
+.us-menu a[aria-current="page"]{font-weight:800;background:var(--surface-soft)}
+.us-menu a[aria-current="page"]:before{content:'';width:4px;height:18px;border-radius:2px;background:var(--marker);margin-right:10px;flex:none}

@@ -39,7 +39,8 @@ export default function FeladataimOldal(){
  },[phase,fail]);
 
  const groups=useMemo(()=>{
-  const list=(tasks||[]).filter(t=>!subjectId||t.subject_id===subjectId);
+  // Ha egy feladatnak sem témája, sem besorolt könyve nincs, minden tantárgynál látszik (nem vész el).
+  const list=(tasks||[]).filter(t=>!subjectId||!t.subject_id||t.subject_id===subjectId);
   const m=new Map<string,Task[]>();
   for(const t of list){const k=t.topic_name||'Téma nélkül';const g=m.get(k);if(g)g.push(t);else m.set(k,[t])}
   return [...m.entries()];
@@ -63,7 +64,8 @@ export default function FeladataimOldal(){
   <main className="pg-main">
    {!schemaReady&&<p className="up-warn">A mentett feladatokhoz le kell futtatni a 010-es adatbázis-frissítést.</p>}
    {tasks===null&&<p className="us-status">Betöltés…</p>}
-   {tasks&&groups.length===0&&schemaReady&&<section className="us-empty"><h2>Még nincs mentett feladat</h2><p>Az olvasóban az AI gombbal keretezz be egy feladatot, kérj hozzá segítséget, és mentsd el. Itt és a témaoldalon is megtalálod.</p></section>}
+   {tasks&&tasks.length>0&&groups.length===0&&<section className="us-empty"><h2>Ennél a tantárgynál nincs mentett feladat</h2><p>A fenti választóban állítsd „Minden tantárgy”-ra, ott mind látszik.</p></section>}
+   {tasks&&tasks.length===0&&schemaReady&&<section className="us-empty"><h2>Még nincs mentett feladat</h2><p>Az olvasóban az AI gombbal keretezz be egy feladatot, kérj hozzá segítséget, és mentsd el. Itt és a témaoldalon is megtalálod.</p></section>}
    {groups.map(([topic,list])=><section key={topic} className="pg-group" aria-label={topic}>
     <h2 className="us-grade-head">{topic}<small>{list.length} feladat</small></h2>
     <Feladatok tasks={list} onRemoved={id=>setTasks(v=>v?v.filter(x=>x.id!==id):v)} onError={fail}/>
