@@ -5,7 +5,8 @@ import {api,ApiError,hasSession,localPrefs} from '../../../lib/client-api';
 import {Icon,spineColor} from '../icons';
 import {konyvCim} from '../../../lib/konyv-cim';
 import Belepes from '../Belepes';
-import KonyvLap,{type Mark,type PdfDoc,type Stroke,type Tool} from './KonyvLap';
+import KonyvLap,{type Box,type Mark,type PdfDoc,type Stroke,type Tool} from './KonyvLap';
+import AiSegitseg,{type Meta} from './AiSegitseg';
 
 type Doc={id:string;title:string;filename?:string|null;mime_type:string;pdf_page?:number|null;link_id?:string};
 
@@ -53,6 +54,8 @@ function Olvaso(){
  const [stageWidth,setStageWidth]=useState(800);
  const stage=useRef<HTMLDivElement>(null);
  const history=useRef<string[]>([]);
+ const [aiBox,setAiBox]=useState<Box|null>(null);
+ const [aiMeta,setAiMeta]=useState<Meta|null>(null);
 
  const fail=useCallback((e:unknown)=>{
   if(e instanceof ApiError&&e.status===401){setPhase('login');return}
@@ -61,7 +64,20 @@ function Olvaso(){
 
  useEffect(()=>{let alive=true;hasSession().then(ok=>{if(alive)setPhase(ok?'ready':'login')});return()=>{alive=false}},[]);
  useEffect(()=>{setTool(localPrefs.get<Tool>('rd-tool','read'))},[]);
- useEffect(()=>{localPrefs.set('rd-tool',tool)},[tool]);
+ useEffect(()=>{localPrefs.set('rd-tool',tool==='ai'?'read':tool)},[tool]);
+ // Lapozáskor vagy könyvváltáskor a keret eltűnik.
+ useEffect(()=>{setAiBox(null)},[page,docId]);
+ // Az AI-nak megmondjuk a könyv évfolyamát, szintjét és tantárgyát (ha be van sorolva).
+ useEffect(()=>{
+  if(tool!=='ai'||aiMeta||phase!=='ready')return;
+  (async()=>{
+   type B={id:string;grade?:number|null;level?:string|null;subject_id?:string|null;link_subject_id?:string|null};
+   const [l,s]=await Promise.all([api<{documents:B[]}>('library'),api<{subjects:{id:string;name:string}[]}>('subjects')]);
+   const d=l.documents.find(x=>x.id===docId);
+   const sid=d?.subject_id||d?.link_subject_id||'';
+   setAiMeta({grade:d?.grade??null,level:d?.level??null,subject:s.subjects.find(x=>x.id===sid)?.name||''});
+  })().catch(()=>setAiMeta({grade:null,level:null,subject:''}));
+ },[tool,aiMeta,phase,docId]);
 
  // A témához tartozó könyvek (fülek) és a megnyitott könyv címe.
  useEffect(()=>{
@@ -219,6 +235,7 @@ function Olvaso(){
      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M17 3l4 4L8 20l-5 1 1-5z" stroke="currentColor" strokeWidth="1.8"/><path d="M14 21h7" stroke={penColor} strokeWidth="3"/></svg>
     </button>
     <button type="button" className="rd-tool" aria-pressed={tool==='eraser'} aria-label="Radír" title="Radír" onClick={()=>setTool('eraser')}><Icon name="eraser" size={22} strokeWidth={1.8}/></button>
+    <button type="button" className="rd-tool rd-tool-ai" aria-pressed={tool==='ai'} aria-label="AI-segítség: keretezd be a feladatot" title="AI-segítség" onClick={()=>setTool(t=>t==='ai'?'read':'ai')}>AI</button>
     <div className="rd-sep"/>
     {(tool==='pen'?PEN_COLORS:MARKER_COLORS).map(x=><button key={x.c} type="button" className="rd-swatch" style={{background:x.c,borderColor:'#fff'}} aria-label={x.n} aria-pressed={color===x.c&&tool!=='eraser'&&tool!=='read'} onClick={()=>{if(tool==='pen')setPenColor(x.c);else{setMarkerColor(x.c);if(tool!=='marker')setTool('marker')}}}/>)}
     <div className="rd-sep"/>
@@ -226,10 +243,11 @@ function Olvaso(){
    </div>
 
    <div className="rd-stage" ref={stage}>
-    {error?<p className="rd-loading" role="alert">{error}</p>:pdf&&page?<KonyvLap pdf={pdf} page={page} maxWidth={fitWidth} tool={tool} color={color} strokes={strokes} marks={marks} onStroke={s=>void addStroke(s)} onErase={id=>void erase(id)}/>:<p className="rd-loading">A könyv megnyitása…</p>}
+    {error?<p className="rd-loading" role="alert">{error}</p>:pdf&&page?<KonyvLap pdf={pdf} page={page} maxWidth={fitWidth} tool={tool} color={color} strokes={strokes} marks={marks} onStroke={s=>void addStroke(s)} onErase={id=>void erase(id)} selection={aiBox} onSelect={setAiBox}/>:<p className="rd-loading">A könyv megnyitása…</p>}
    </div>
 
-   {!focus&&<aside className="rd-side" aria-label="Ezen az oldalon">
+   {tool==='ai'&&pdf&&page>0&&<div className="ai-dock"><AiSegitseg pdf={pdf} page={page} box={aiBox} docId={docId} topicId={topicId} meta={aiMeta} onClose={()=>{setTool('read');setAiBox(null)}} onAuth={()=>setPhase('login')}/></div>}
+   {!focus&&tool!=='ai'&&<aside className="rd-side" aria-label="Ezen az oldalon">
     <section className="rd-card">
      <h2 className="us-label" style={{fontSize:12}}>Ezen az oldalon</h2>
      {pageStrokes.length+pageMarks.length===0?<p className="rd-hint">Még nincs kiemelés. Válaszd a kiemelőt vagy a tollat, és húzz a Pencillel.</p>:<ul className="rd-list">

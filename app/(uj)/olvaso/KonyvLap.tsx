@@ -3,7 +3,8 @@ import {useEffect,useRef,useState} from 'react';
 
 export type Stroke={id:string;pdf_page:number;tool:'marker'|'pen';color:string;width:number;points:number[][];local?:boolean};
 export type Mark={id:string;pdf_page:number;kind:'highlight'|'underline';color:'yellow'|'cyan'|'green';x:number;y:number;w:number;h:number};
-export type Tool='read'|'marker'|'pen'|'eraser';
+export type Tool='read'|'marker'|'pen'|'eraser'|'ai';
+export type Box={x:number;y:number;w:number;h:number};
 
 // A minimális PDF.js-felület, amire szükségünk van (a teljes típus nagy és változékony).
 type PdfPage={getViewport:(o:{scale:number})=>{width:number;height:number};render:(o:{canvasContext:CanvasRenderingContext2D;viewport:unknown;transform?:number[]})=>{promise:Promise<void>;cancel:()=>void}};
@@ -37,16 +38,20 @@ type Props={
  strokes:Stroke[];marks:Mark[];
  onStroke:(s:{tool:'marker'|'pen';color:string;width:number;points:number[][]})=>void;
  onErase:(id:string)=>void;
+ /** AI-eszköz: a bekeretezett feladat (az oldalhoz viszonyítva, 0–1 között). */
+ selection?:Box|null;
+ onSelect?:(box:Box)=>void;
 };
 
 export const STROKE_WIDTH={marker:0.018,pen:0.0032};
 
-export default function KonyvLap({pdf,page,maxWidth,tool,color,strokes,marks,onStroke,onErase}:Props){
+export default function KonyvLap({pdf,page,maxWidth,tool,color,strokes,marks,onStroke,onErase,selection,onSelect}:Props){
  const canvas=useRef<HTMLCanvasElement>(null);
  const svg=useRef<SVGSVGElement>(null);
  const [size,setSize]=useState<{w:number;h:number}|null>(null);
  const [error,setError]=useState('');
  const [draft,setDraft]=useState<number[][]|null>(null);
+ const [boxDraft,setBoxDraft]=useState<number[][]|null>(null);
  const drawing=useRef<{id:number;points:number[][]}|null>(null);
  const penSeen=useRef(false);
  const erased=useRef<Set<string>>(new Set());
@@ -101,6 +106,8 @@ export default function KonyvLap({pdf,page,maxWidth,tool,color,strokes,marks,onS
  }
  function accepts(e:React.PointerEvent){
   if(tool==='read')return false;
+  // A feladat bekeretezése ujjal is mehet.
+  if(tool==='ai')return e.pointerType!=='mouse'||e.button===0;
   if(e.pointerType==='pen'&&!penSeen.current){penSeen.current=true;try{window.localStorage.setItem('rd-pen','1')}catch{}}
   // Ha már Pencil-lel rajzoltál, az ujjad lapoz és görget, nem rajzol.
   if(e.pointerType==='touch'&&penSeen.current)return false;
@@ -124,6 +131,7 @@ export default function KonyvLap({pdf,page,maxWidth,tool,color,strokes,marks,onS
   erased.current=new Set();
   const p=local(e);
   if(tool==='eraser'){drawing.current={id:e.pointerId,points:[]};eraseAt(p);return}
+  if(tool==='ai'){drawing.current={id:e.pointerId,points:[p]};setBoxDraft([p,p]);return}
   drawing.current={id:e.pointerId,points:[p]};setDraft([p]);
  }
  function move(e:React.PointerEvent<SVGSVGElement>){
@@ -131,6 +139,11 @@ export default function KonyvLap({pdf,page,maxWidth,tool,color,strokes,marks,onS
   e.preventDefault();
   const events=typeof e.nativeEvent.getCoalescedEvents==='function'?e.nativeEvent.getCoalescedEvents():[e.nativeEvent];
   const r=svg.current!.getBoundingClientRect();
+  if(tool==='ai'){
+   const ev=e.nativeEvent;
+   const p=[Math.min(1,Math.max(0,(ev.clientX-r.left)/r.width)),Math.min(1,Math.max(0,(ev.clientY-r.top)/r.height))];
+   setBoxDraft([d.points[0],p]);return;
+  }
   for(const ev of events.length?events:[e.nativeEvent]){
    const p=[Math.min(1,Math.max(0,(ev.clientX-r.left)/r.width)),Math.min(1,Math.max(0,(ev.clientY-r.top)/r.height))];
    if(tool==='eraser'){eraseAt(p);continue}
@@ -143,11 +156,20 @@ export default function KonyvLap({pdf,page,maxWidth,tool,color,strokes,marks,onS
  function up(e:React.PointerEvent<SVGSVGElement>){
   const d=drawing.current;if(!d||d.id!==e.pointerId)return;
   drawing.current=null;setDraft(null);
+  if(tool==='ai'){
+   const b=boxDraft;setBoxDraft(null);
+   if(b){
+    const x=Math.min(b[0][0],b[1][0]),y=Math.min(b[0][1],b[1][1]),w=Math.abs(b[1][0]-b[0][0]),hh=Math.abs(b[1][1]-b[0][1]);
+    // Túl kicsi keret (véletlen koppintás) nem számít.
+    if(w>0.04&&hh>0.02)onSelect?.({x,y,w,h:hh});
+   }
+   return;
+  }
   if(tool==='marker'||tool==='pen'){
    if(d.points.length>=1)onStroke({tool,color,width:STROKE_WIDTH[tool],points:d.points});
   }
  }
- function cancel(){drawing.current=null;setDraft(null)}
+ function cancel(){drawing.current=null;setDraft(null);setBoxDraft(null)}
 
  const pageStrokes=strokes.filter(s=>s.pdf_page===page);
  const pageMarks=marks.filter(m=>m.pdf_page===page);
@@ -158,7 +180,7 @@ export default function KonyvLap({pdf,page,maxWidth,tool,color,strokes,marks,onS
   {!size&&!error&&<p className="rd-loading">Az oldal betöltése…</p>}
   {error&&<p className="rd-loading" role="alert">{error}</p>}
   {size&&<svg ref={svg} className={'rd-ink'+(tool!=='read'?' is-drawing':'')} viewBox={`0 0 ${W} ${h}`} preserveAspectRatio="none"
-   style={{touchAction:tool==='read'?'auto':penSeen.current?'pan-x pan-y pinch-zoom':'none'}}
+   style={{touchAction:tool==='read'?'auto':tool==='ai'||!penSeen.current?'none':'pan-x pan-y pinch-zoom'}}
    onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={cancel} onLostPointerCapture={cancel}
    aria-hidden="true">
    {pageMarks.map(m=>m.kind==='highlight'
@@ -170,6 +192,8 @@ export default function KonyvLap({pdf,page,maxWidth,tool,color,strokes,marks,onS
    {draft&&drawingTool&&<path d={pathOf(draft,h)} fill="none" stroke={color} strokeWidth={STROKE_WIDTH[drawingTool]*W}
     strokeLinecap="round" strokeLinejoin="round" opacity={drawingTool==='marker'?0.5:0.95}
     style={drawingTool==='marker'?{mixBlendMode:'multiply'}:undefined}/>}
+   {boxDraft&&<rect x={Math.min(boxDraft[0][0],boxDraft[1][0])*W} y={Math.min(boxDraft[0][1],boxDraft[1][1])*h} width={Math.abs(boxDraft[1][0]-boxDraft[0][0])*W} height={Math.abs(boxDraft[1][1]-boxDraft[0][1])*h} fill="rgba(14,124,116,.07)" stroke="#0E7C74" strokeWidth={3} strokeDasharray="10 7" rx={6}/>}
+   {!boxDraft&&selection&&tool==='ai'&&<rect x={selection.x*W} y={selection.y*h} width={selection.w*W} height={selection.h*h} fill="rgba(14,124,116,.07)" stroke="#0E7C74" strokeWidth={3} strokeDasharray="10 7" rx={6}/>}
   </svg>}
  </div>;
 }

@@ -32,7 +32,7 @@ export const tableLabel=(name:string)=>({
  os_subjects:'Tantárgyak',os_topics:'Témák',os_documents:'Könyvek és dokumentumok adatai',os_document_links:'Párosítások (fejezet → téma)',
  os_tool_links:'Eszközlinkek',os_reading_positions:'Olvasási helyek',os_curriculum_profiles:'Tantervi profilok',os_curriculum_sources:'Tantervi források',
  os_curriculum_placements:'Óraszámok',os_topic_requirements:'Követelmények a témákhoz',os_pdf_notes:'Oldaljegyzetek',os_pdf_marks:'Régi kiemelések',
- os_pdf_ink:'Kiemelések és rajzok',os_videos:'Videók',os_lesson_workspaces:'Témajegyzetek',os_plans:'Tanmenetek',os_plan_lessons:'Tanmenetórák',os_ai_usage:'AI-használat'
+ os_pdf_ink:'Kiemelések és rajzok',os_videos:'Videók',os_lesson_workspaces:'Témajegyzetek',os_plans:'Tanmenetek',os_plan_lessons:'Tanmenetórák',os_ai_usage:'AI-használat',os_tasks:'Mentett feladatok'
 } as Record<string,string>)[name]||name;
 
 export async function makeBackup(onProgress:(text:string)=>void):Promise<{blob:Blob;manifest:Manifest}>{
@@ -57,7 +57,7 @@ export async function makeBackup(onProgress:(text:string)=>void):Promise<{blob:B
  const manifest:Manifest={
   app:APP_ID,format:'oktatasi-seged-mentes',formatVersion:FORMAT_VERSION,appVersion:process.env.NEXT_PUBLIC_APP_VERSION||'',createdAt:new Date().toISOString(),
   tables:infos,
-  notIncluded:{what:'A feltöltött fájlok (könyvek PDF-jei, dokumentumok) a privát tárhelyen maradnak, nincsenek a mentésben.',count:files.length,totalBytes:files.reduce((n,f)=>n+(f.bytes||0),0),files}
+  notIncluded:{what:'A feltöltött fájlok (könyvek PDF-jei, dokumentumok) és a mentett feladatok képei a privát tárhelyen maradnak, nincsenek a mentésben.',count:files.length,totalBytes:files.reduce((n,f)=>n+(f.bytes||0),0),files}
  };
  zip.file('manifest.json',JSON.stringify(manifest,null,1));
  zip.file('OLVASSEL.txt',[

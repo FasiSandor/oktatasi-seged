@@ -13,7 +13,7 @@ type Doc={id:string;title:string;filename:string|null;mime_type:string;created_a
 type Month={month:string;calls:number;failed:number;input:number;output:number;usd:number;unknownPrice:boolean;features:Record<string,number>};
 
 const ROLE_LABEL:Record<string,string>={plan:'Tanmenet',requirement:'Követelmény',other:'Egyéb dokumentum'};
-const FEATURE_LABEL:Record<string,string>={contents:'Tartalomjegyzék-olvasás',match:'Fejezetek párosítása',plan:'Tanmenet párosítása',other:'Egyéb'};
+const FEATURE_LABEL:Record<string,string>={contents:'Tartalomjegyzék-olvasás',match:'Fejezetek párosítása',plan:'Tanmenet párosítása',help:'Segítség feladathoz',other:'Egyéb'};
 const MIME:Record<string,string>={pdf:'application/pdf',docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',xlsx:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',pptx:'application/vnd.openxmlformats-officedocument.presentationml.presentation',jpg:'image/jpeg',jpeg:'image/jpeg',png:'image/png',webp:'image/webp'};
 const XLSX=MIME.xlsx;
 

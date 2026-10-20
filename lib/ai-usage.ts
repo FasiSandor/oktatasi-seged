@@ -7,7 +7,7 @@ type Usage={promptTokenCount?:number;candidatesTokenCount?:number;thoughtsTokenC
  * Egy AI-hívás rögzítése a számlálóhoz. Soha nem dob hibát: ha a 009-es
  * adatbázis-frissítés még nincs lefuttatva, vagy a mentés nem sikerül, a hívás attól még működik.
  */
-export async function recordAiUsage(owner:string,feature:'contents'|'match'|'plan'|'other',model:string,usage:Usage|undefined,ok=true){
+export async function recordAiUsage(owner:string,feature:'contents'|'match'|'plan'|'help'|'other',model:string,usage:Usage|undefined,ok=true){
  try{
   const input=Math.max(0,Math.round(usage?.promptTokenCount||0));
   // A „gondolkodás” tokenjeit is kimenetként számlázza a Google.

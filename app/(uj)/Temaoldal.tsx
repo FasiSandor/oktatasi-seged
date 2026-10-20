@@ -54,55 +54,40 @@ export default function Temaoldal({rows,videos,editing,busy,onOpen,onRename,onUn
 
   {sections.map(sec=><section key={sec.grade} className="us-grade" aria-label={sec.grade?sec.grade+'. évfolyam':'Évfolyam nélkül'}>
    {(sections.length>1||sec.grade>0)&&<h3 className="us-grade-head">{sec.grade?sec.grade+'. évfolyam':'Évfolyam nincs megadva'}<small>{sec.books.length} könyv</small></h3>}
-   <div className="us-books">
+   <div className="tb-grid">
     {sec.books.map(list=>{
      const d=list[0];const color=spineColor(d.id);const isPdf=d.mime_type==='application/pdf';
      const kind=KIND_LABEL[d.kind||d.category||'reference']||'Anyag';
      const chapters=isPdf?list.filter(x=>x.pdf_page):[];
-     const head=<>
-      <span className="us-book-kind" style={{color}}>{kind}{d.level==='emelt'&&<span className="us-badge">Emelt</span>}</span>
-      <span className="us-book-title">{konyvCim(d.title,d.filename)}</span>
-     </>;
-     if(editing)return <div key={d.link_id} className={'us-book is-edit'+(list.length>1?' has-ch':'')}>
-      <Borito id={d.id} pdf={isPdf}/>
-      <span className="us-book-body">
-       {head}
-       <span className="us-edit-actions">
-        <button type="button" className="us-btn us-btn-ghost us-edit-rename" onClick={()=>onRename(d)} disabled={busy}><Icon name="pen" size={16}/>Átnevezés</button>
-        <a className="us-btn us-btn-ghost us-edit-rename" href={'/konyvtar?doc='+encodeURIComponent(d.id)}><Icon name="lines" size={16}/>Besorolás</a>
-       </span>
-       <span className="us-ch">
-        {list.map(c=><span key={c.link_id} className="us-ch-edit">
-         <span className="us-ch-page">{c.pdf_page?c.pdf_page+'. o.':'eleje'}</span>
-         <span className="us-ch-title">{c.chapter_title||(c.pdf_page?'Fejezet':'Az egész könyv')}{c.depth>0&&<small className="us-ch-topic">{c.topic_name}</small>}</span>
-         <button type="button" className="us-icon-btn" aria-label={'Levétel erről a témáról: '+(c.chapter_title||c.pdf_page||'')} onClick={()=>onUnlink(c)} disabled={busy}><Icon name="trash" size={16}/></button>
-        </span>)}
-       </span>
-      </span>
-     </div>;
-     if(chapters.length>1)return <div key={d.link_id} className="us-book has-ch">
-      <Borito id={d.id} pdf={isPdf}/>
-      <span className="us-book-body">
-       {head}
-       <span className="us-book-where">{chapters.length} helyen szerepel ez a téma. Koppints arra, amelyiket most tanítod.</span>
-       <span className="us-ch">
-        {chapters.map(c=><button key={c.link_id} type="button" className="us-ch-btn" onClick={()=>onOpen(c)}>
-         <span className="us-ch-page">{c.pdf_page}. o.</span>
-         <span className="us-ch-title"><span>{c.chapter_title||'Fejezet'}</span>{c.depth>0&&<small className="us-ch-topic">{c.topic_name}</small>}</span>
-        </button>)}
-       </span>
-      </span>
-     </div>;
-     const only=chapters[0]||d;
-     return <button key={d.link_id} type="button" className="us-book" onClick={()=>onOpen(only)}>
-      <Borito id={d.id} pdf={isPdf}/>
-      <span className="us-book-body">
-       {head}
-       <span className="us-book-where">{isPdf?(only.pdf_page?(only.chapter_title?only.chapter_title+' · ':'')+only.pdf_page+'. oldal':'Még nincs megadva a hely, az elején nyílik'):'Eredeti fájl megnyitása'}</span>
-       {only.depth>0&&<span className="us-ch-topic">{only.topic_name}</span>}
-       <span className="us-book-open">Kinyitom<Icon name="arrow" size={16} strokeWidth={2.2}/></span>
-      </span>
-     </button>;
+     const rows=editing?list:chapters.length?chapters:[d];
+     const where=chapters.length>1?chapters.length+' helyen szerepel ez a téma':isPdf?(chapters.length?'A témánál nyílik ki':'Még nincs megadva a hely, az elején nyílik'):'Eredeti fájl';
+     return <article key={d.link_id} className={'tb-card'+(editing?' is-edit':'')}>
+      <div className="tb-head" style={{borderLeftColor:color}}>
+       <Borito id={d.id} pdf={isPdf} className="tb-cover"/>
+       <div className="tb-meta">
+        <span className="us-book-kind" style={{color}}>{kind}{d.level==='emelt'&&<span className="us-badge">Emelt</span>}</span>
+        <span className="tb-title">{konyvCim(d.title,d.filename)}</span>
+        <span className="tb-where">{where}</span>
+        {editing&&<span className="us-edit-actions">
+         <button type="button" className="us-btn us-btn-ghost us-edit-rename" onClick={()=>onRename(d)} disabled={busy}><Icon name="pen" size={16}/>Átnevezés</button>
+         <a className="us-btn us-btn-ghost us-edit-rename" href={'/konyvtar?doc='+encodeURIComponent(d.id)}><Icon name="lines" size={16}/>Besorolás</a>
+        </span>}
+       </div>
+      </div>
+      <div className="tb-list">
+       {rows.map(c=>editing
+        ?<div key={c.link_id} className="tb-row is-edit">
+          <span className="tb-page">{c.pdf_page?c.pdf_page+'. o.':'eleje'}</span>
+          <span className="tb-text"><span>{c.chapter_title||(c.pdf_page?'Fejezet':'Az egész könyv')}</span>{c.depth>0&&<small>{c.topic_name}</small>}</span>
+          <button type="button" className="us-icon-btn" aria-label={'Levétel erről a témáról: '+(c.chapter_title||c.pdf_page||'')} onClick={()=>onUnlink(c)} disabled={busy}><Icon name="trash" size={16}/></button>
+         </div>
+        :<button key={c.link_id} type="button" className="tb-row" onClick={()=>onOpen(c)}>
+          <span className="tb-page">{c.pdf_page?c.pdf_page+'. o.':isPdf?'eleje':''}</span>
+          <span className="tb-text"><span>{c.chapter_title||(isPdf?'Kinyitom':'Megnyitás')}</span>{c.depth>0&&<small>{c.topic_name}</small>}</span>
+          <Icon name="arrow" size={16} strokeWidth={2.2}/>
+         </button>)}
+      </div>
+     </article>;
     })}
    </div>
   </section>)}

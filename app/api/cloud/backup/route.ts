@@ -27,7 +27,8 @@ const TABLES:{name:string;order:string}[]=[
  {name:'os_lesson_workspaces',order:'topic_id'},
  {name:'os_plans',order:'id'},
  {name:'os_plan_lessons',order:'id'},
- {name:'os_ai_usage',order:'id'}
+ {name:'os_ai_usage',order:'id'},
+ {name:'os_tasks',order:'id'}
 ];
 const PAGE=1000;
 const byName=(n:unknown)=>TABLES.find(t=>t.name===n);
@@ -62,6 +63,7 @@ export async function POST(req:NextRequest){
    const copy:Record<string,unknown>={...r,owner_id:owner};
    // Más felhasználó fájljára mutató bejegyzést nem fogadunk el.
    if(table.name==='os_documents'&&copy.storage_key!=null&&!(typeof copy.storage_key==='string'&&copy.storage_key.startsWith(prefix)))throw Error('FORBIDDEN');
+   if(table.name==='os_tasks'&&copy.image_key!=null&&!(typeof copy.image_key==='string'&&copy.image_key.startsWith(prefix)))throw Error('FORBIDDEN');
    return copy;
   });
   if(!rows.length)return Response.json({inserted:0});

@@ -5,6 +5,7 @@ import {Icon,spineColor} from './icons';
 import {konyvCim} from '../../lib/konyv-cim';
 import Belepes from './Belepes';
 import Temaoldal,{type LinkRow,type VideoRow} from './Temaoldal';
+import Feladatok,{type Task} from './Feladatok';
 
 type Subject={id:string;name:string};
 type Topic={id:string;name:string;parent_id:string|null;position:number};
@@ -33,6 +34,7 @@ export default function Tananyag(){
  const [selectedId,setSelectedId]=useState('');
  const [rows,setRows]=useState<LinkRow[]|null>(null);
  const [videos,setVideos]=useState<VideoRow[]>([]);
+ const [tasks,setTasks]=useState<Task[]>([]);
  const [topicGrades,setTopicGrades]=useState<Map<string,number[]>>(new Map());
  const [tools,setTools]=useState<Tool[]>([]);
  const [workspace,setWorkspace]=useState<Workspace|null>(null);
@@ -132,6 +134,8 @@ export default function Tananyag(){
    api<{tools:Tool[]}>('tools?topicId='+encodeURIComponent(topicId))
   ]);
   setRows(d.links);setVideos(d.videos);setTools(t.tools);
+  setTasks([]);
+  api<{tasks:Task[]}>('tasks?topicId='+encodeURIComponent(topicId)).then(r=>setTasks(r.tasks)).catch(()=>{});
   try{
    const w=await api<{workspace:Workspace}>('lesson-workspace?topicId='+encodeURIComponent(topicId));
    setWorkspace(w.workspace);setNotesDraft(w.workspace.notes||'');
@@ -342,6 +346,7 @@ export default function Tananyag(){
      <a href="/feltoltes">Új könyv feltöltése</a>
      <a href="/konyvtar">Könyvtár</a>
      <a href="/tanmenet">Tanmenet</a>
+     <a href="/feladatok">Feladataim</a>
      <a href="/beallitasok">Beállítások</a>
      <a href="/cloud/videos">Videótár</a>
      <hr/>
@@ -428,6 +433,11 @@ export default function Tananyag(){
        <span><b>Könyv vagy feladatgyűjtemény</b><small>Feltöltés vagy hozzárendelés ehhez a témához</small></span>
       </a>
      </section>
+
+     {tasks.length>0&&<section style={{display:'flex',flexDirection:'column',gap:12}} aria-label="Mentett feladatok">
+      <div className="us-books-head"><h2 className="us-label">Mentett feladatok</h2><a className="us-btn us-btn-ghost" href="/feladatok">Mind</a></div>
+      <Feladatok tasks={tasks} onRemoved={id=>setTasks(v=>v.filter(x=>x.id!==id))} onError={fail}/>
+     </section>}
 
      <div className="us-panels">
       <section className="us-panel" aria-label="Eszközök a témához">
