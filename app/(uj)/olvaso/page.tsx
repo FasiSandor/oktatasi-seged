@@ -145,6 +145,41 @@ function Olvaso(){
  const count=pdf?.numPages||0;
  const go=useCallback((p:number)=>{if(!count)return;setPage(Math.max(1,Math.min(count,p)));stage.current?.scrollTo({top:0})},[count]);
 
+ // Lapozás ujjal: olvasó (kéz) módban vízszintes húzás balra = következő, jobbra = előző oldal.
+ // Függőleges húzás, két ujjas nagyítás, Pencil és rajzoló eszközök nem lapoznak.
+ const swipeState=useRef({tool,page,go});
+ swipeState.current={tool,page,go};
+ useEffect(()=>{
+  const el=stage.current;if(!el)return;
+  let start:{x:number;y:number;t:number}|null=null;
+  function onStart(e:TouchEvent){
+   const t=e.touches[0] as Touch&{touchType?:string};
+   if(e.touches.length!==1||t.touchType==='stylus'||swipeState.current.tool!=='read'){start=null;return}
+   // A képernyő széléről induló húzás a böngészőé (vissza/előre), azt nem vesszük el.
+   if(t.clientX<24||t.clientX>window.innerWidth-24){start=null;return}
+   start={x:t.clientX,y:t.clientY,t:Date.now()};
+  }
+  function onMove(e:TouchEvent){if(e.touches.length>1)start=null}
+  function onEnd(e:TouchEvent){
+   const s=start;start=null;if(!s)return;
+   const zoomed=(window.visualViewport?.scale||1)>1.05||el!.scrollWidth>el!.clientWidth+4;
+   if(zoomed)return;
+   const t=e.changedTouches[0];const dx=t.clientX-s.x,dy=t.clientY-s.y;
+   if(Date.now()-s.t>900||Math.abs(dx)<60||Math.abs(dx)<Math.abs(dy)*1.6)return;
+   const {page:p,go:g}=swipeState.current;
+   g(dx<0?p+1:p-1);
+  }
+  // A vízszintes húzás ne lépjen vissza az előző oldalra a böngészőben.
+  const root=document.documentElement,prevOverscroll=root.style.overscrollBehaviorX;
+  root.style.overscrollBehaviorX='none';document.body.style.overscrollBehaviorX='none';
+  el.addEventListener('touchstart',onStart,{passive:true});
+  el.addEventListener('touchmove',onMove,{passive:true});
+  el.addEventListener('touchend',onEnd,{passive:true});
+  function onCancel(){start=null}
+  el.addEventListener('touchcancel',onCancel,{passive:true});
+  return()=>{el.removeEventListener('touchstart',onStart);el.removeEventListener('touchmove',onMove);el.removeEventListener('touchend',onEnd);el.removeEventListener('touchcancel',onCancel);root.style.overscrollBehaviorX=prevOverscroll;document.body.style.overscrollBehaviorX=''};
+ },[phase]);
+
  useEffect(()=>{
   function key(e:KeyboardEvent){
    const target=e.target as HTMLElement;if(target.closest('input,textarea,select'))return;

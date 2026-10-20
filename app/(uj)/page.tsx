@@ -127,19 +127,24 @@ export default function Tananyag(){
  const selectedParent=selected?.parent_id?topics.find(t=>t.id===selected.parent_id)||null:null;
  const subject=subjects.find(s=>s.id===subjectId)||null;
 
+ // Csak a legutoljára kért téma válaszát fogadjuk el (gyors egymás utáni koppintásnál
+ // a korábbi, későn érkező válasz nem írhatja felül az újat).
+ const loadSeq=useRef(0);
  const loadSelection=useCallback(async(topicId:string)=>{
-  setRows(null);setVideos([]);setTools([]);setWorkspace(null);setNotesDraft('');setNotesState('idle');
+  const seq=++loadSeq.current;const current=()=>seq===loadSeq.current;
+  setRows(null);setVideos([]);setTools([]);setWorkspace(null);setNotesDraft('');setNotesState('idle');setTasks([]);
   const [d,t]=await Promise.all([
    api<{links:LinkRow[];videos:VideoRow[]}>('topic-page?topicId='+encodeURIComponent(topicId)),
    api<{tools:Tool[]}>('tools?topicId='+encodeURIComponent(topicId))
   ]);
+  if(!current())return;
   setRows(d.links);setVideos(d.videos);setTools(t.tools);
-  setTasks([]);
-  api<{tasks:Task[]}>('tasks?topicId='+encodeURIComponent(topicId)).then(r=>setTasks(r.tasks)).catch(()=>{});
+  api<{tasks:Task[]}>('tasks?topicId='+encodeURIComponent(topicId)).then(r=>{if(current())setTasks(r.tasks)}).catch(()=>{});
   try{
    const w=await api<{workspace:Workspace}>('lesson-workspace?topicId='+encodeURIComponent(topicId));
+   if(!current())return;
    setWorkspace(w.workspace);setNotesDraft(w.workspace.notes||'');
-  }catch(e){if(e instanceof ApiError&&e.status===401)throw e;setNotesState('unavailable')}
+  }catch(e){if(e instanceof ApiError&&e.status===401)throw e;if(current())setNotesState('unavailable')}
  },[]);
  useEffect(()=>{if(selectedId&&topics.some(t=>t.id===selectedId))loadSelection(selectedId).catch(fail)},[selectedId,topics,loadSelection,fail]);
  useEffect(()=>{setEditBooks(false)},[selectedId]);
