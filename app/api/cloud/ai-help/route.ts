@@ -10,7 +10,7 @@ export const maxDuration=60;
  */
 const MODES={
  hint:'Adj egy rövid, 1–2 mondatos tippet, amely elindítja a gondolkodást. NE áruld el a végeredményt, és ne oldd meg a feladatot.',
- steps:'Oldd meg a feladatot lépésről lépésre, számozott lépésekben (1., 2., 3. …), minden lépésnél egy rövid magyarázattal. Ha több részfeladat van, mindegyiket oldd meg. A végén külön sorban: „Végeredmény: …”.',
+ steps:'Oldd meg a feladatot végig, számozott lépésekben (1., 2., 3. …), minden lépésnél egy rövid magyarázattal és a számolással. Ha több részfeladat van, mindegyiket oldd meg. Az utolsó sor mindig: „Végeredmény: …” (mértékegységgel, ha van).',
  similar:'Írj egy ugyanilyen típusú és nehézségű új feladatot más adatokkal. Utána „Megoldás:” címmel oldd meg röviden, számozott lépésekben, a végén „Végeredmény: …” sorral.'
 } as const;
 
@@ -33,7 +33,9 @@ export async function POST(req:NextRequest){
    grade?'Évfolyam: '+grade+'.'+(level?' Szint: '+level+'szint.':''):'',
    'Írj magyarul, egyszerűen, a diákok szintjén, hogy a tanár órán is használhassa.',
    'Ne használj LaTeX-et, Markdown-táblázatot és címsorokat. A képleteket egyszerű szövegként írd (pl. x², √2, a·b, 3/4, ≤).',
-   'Ha a feladat nem olvasható vagy nem egyértelmű, ezt írd meg röviden, és ne találgass.',
+   'Ne ismételd el és ne foglald össze a feladat szövegét, rögtön a lényeggel kezdj. Ne írj bevezetőt és zárszót.',
+   'Ha a feladat ábrára hivatkozik, de az ábra nem látszik, egyetlen mondatban írd le, milyen szokásos értelmezést feltételezel (pl. „Feltételezem, hogy …”), és ez alapján oldd meg. Ne elmélkedj a lehetőségeken.',
+   'Csak akkor ne oldd meg, ha a szöveg olvashatatlan; ezt egy mondatban írd meg.',
    MODES[mode]
   ].filter(Boolean).join('\n');
 
@@ -41,7 +43,7 @@ export async function POST(req:NextRequest){
   try{
    response=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(model)+':generateContent',{
     method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key},
-    body:JSON.stringify({contents:[{role:'user',parts:[{inlineData:{mimeType:'image/jpeg',data:b.image}},{text:prompt}]}],generationConfig:{temperature:0.2,maxOutputTokens:6000}}),
+    body:JSON.stringify({contents:[{role:'user',parts:[{inlineData:{mimeType:'image/jpeg',data:b.image}},{text:prompt}]}],generationConfig:{temperature:0.2,maxOutputTokens:8192,...(/2\.5/.test(model)?{thinkingConfig:{thinkingBudget:/flash-lite/.test(model)?0:1024}}:{})}}),
     signal:AbortSignal.timeout(50000)
    });
   }catch(e){
@@ -57,6 +59,8 @@ export async function POST(req:NextRequest){
   await recordAiUsage(owner,'help',model,output?.usageMetadata);
   const text=(output?.candidates?.[0]?.content?.parts||[]).map((x:{text?:string})=>x.text||'').join('').trim();
   if(!text)return Response.json({error:'Az AI nem adott választ. Próbáld újra, vagy keretezd be pontosabban a feladatot.'},{status:502});
-  return Response.json({text:text.slice(0,20000)});
+  // Ha a szókeret elfogyott, a válasz vége hiányzik: ezt jelezzük.
+  const cut=output?.candidates?.[0]?.finishReason==='MAX_TOKENS';
+  return Response.json({text:text.slice(0,20000),cut});
  }catch(e){return apiError(e)}
 }

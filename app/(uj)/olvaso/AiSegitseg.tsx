@@ -58,6 +58,7 @@ export default function AiSegitseg({pdf,page,box,docId,topicId,meta,onClose,onAu
  const [image,setImage]=useState('');
  const [mode,setMode]=useState<Mode|null>(null);
  const [answer,setAnswer]=useState('');
+ const [cut,setCut]=useState(false);
  const [busy,setBusy]=useState(false);
  const [error,setError]=useState('');
  const [note,setNote]=useState('');
@@ -65,7 +66,7 @@ export default function AiSegitseg({pdf,page,box,docId,topicId,meta,onClose,onAu
 
  // Új keret: új kép, az előző válasz eltűnik.
  useEffect(()=>{
-  setAnswer('');setMode(null);setError('');setSaved('no');setNote('');setImage('');
+  setAnswer('');setCut(false);setMode(null);setError('');setSaved('no');setNote('');setImage('');
   if(!box)return;
   let alive=true;
   cropImage(pdf,page,box).then(d=>{if(alive)setImage(d)}).catch(e=>{if(alive)setError(e instanceof Error?e.message:'A kép nem készíthető el.')});
@@ -74,10 +75,10 @@ export default function AiSegitseg({pdf,page,box,docId,topicId,meta,onClose,onAu
 
  async function ask(m:Mode){
   if(!image||busy)return;
-  setMode(m);setBusy(true);setError('');setAnswer('');setSaved('no');
+  setMode(m);setBusy(true);setError('');setAnswer('');setCut(false);setSaved('no');
   try{
-   const r=await api<{text:string}>('ai-help',{method:'POST',body:JSON.stringify({image,mode:m,grade:meta?.grade??null,level:meta?.level??null,subject:meta?.subject||''})},65000);
-   setAnswer(r.text);
+   const r=await api<{text:string;cut?:boolean}>('ai-help',{method:'POST',body:JSON.stringify({image,mode:m,grade:meta?.grade??null,level:meta?.level??null,subject:meta?.subject||''})},65000);
+   setAnswer(r.text);setCut(!!r.cut);
   }catch(e){
    if(e instanceof ApiError&&e.status===401){onAuth();return}
    setError(e instanceof Error?e.message:'Az AI most nem válaszolt.');
@@ -101,7 +102,7 @@ export default function AiSegitseg({pdf,page,box,docId,topicId,meta,onClose,onAu
    <span className="ai-badge">AI</span><b>Segítség a feladathoz</b>
    <button type="button" className="us-icon-btn" aria-label="Bezárás" onClick={onClose}><Icon name="close" size={16}/></button>
   </div>
-  {!box&&<p className="rd-hint">Keretezd be a feladatot az oldalon: húzd végig az ujjad vagy a Pencilt a feladat egyik sarkától az átellenes sarkáig.</p>}
+  {!box&&<p className="rd-hint">Keretezd be a feladatot az oldalon: húzd végig az ujjad vagy a Pencilt a feladat egyik sarkától az átellenes sarkáig. Ha a feladat ábrára hivatkozik, az ábrát is keretezd be.</p>}
   {box&&<>
    {image?<img className="ai-crop" src={'data:image/jpeg;base64,'+image} alt="A bekeretezett feladat"/>:!error&&<p className="rd-hint">A kép készül…</p>}
    <div className="ai-modes">
@@ -112,6 +113,7 @@ export default function AiSegitseg({pdf,page,box,docId,topicId,meta,onClose,onAu
   {error&&<p className="up-error" role="alert">{error}</p>}
   {answer&&<>
    <Valasz text={answer}/>
+   {cut&&<p className="up-error" role="alert">A válasz nem teljes, a vége lemaradt. Nyomd meg újra a gombot.</p>}
    <p className="ai-warn">Az AI tévedhet. Mielőtt a táblára kerül, nézd át.</p>
    <div className="ai-save">
     <label className="sr-only" htmlFor="ai-note">Saját megjegyzés</label>
