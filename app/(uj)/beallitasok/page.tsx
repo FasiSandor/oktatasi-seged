@@ -7,6 +7,8 @@ import {makeBackup,readBackup,restoreBackup,tableLabel,type ReadResult} from '..
 import {PRICES_CHECKED,USD_HUF} from '../../../lib/ai-arak';
 import {Icon} from '../icons';
 import Belepes from '../Belepes';
+import Kereso from '../Kereso';
+import Fiokmenu from '../Fiokmenu';
 
 type Subject={id:string;name:string};
 type Doc={id:string;title:string;filename:string|null;mime_type:string;created_at:string;subject_id?:string|null;role?:string};
@@ -146,6 +148,10 @@ export default function Beallitasok(){
   <header className="rd-top">
    <a href="/" className="rd-back"><Icon name="back" size={20} strokeWidth={2.2}/><span>Tananyag</span></a>
    <h1 className="pg-title">Beállítások</h1>
+   <div className="rd-right">
+    <Kereso onAuth={()=>setPhase('login')}/>
+    <Fiokmenu/>
+   </div>
   </header>
   <main className="pg-main" style={{maxWidth:860}}>
    {!schemaReady&&<p className="up-warn">A Dokumentumok részhez és a könyvek besorolásához le kell futtatni a 008-as adatbázis-frissítést. A mentés és a fiók ettől függetlenül működik.</p>}

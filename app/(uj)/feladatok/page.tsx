@@ -3,6 +3,8 @@ import {useCallback,useEffect,useMemo,useState} from 'react';
 import {api,ApiError,hasSession,localPrefs} from '../../../lib/client-api';
 import {Icon} from '../icons';
 import Belepes from '../Belepes';
+import Kereso from '../Kereso';
+import Fiokmenu from '../Fiokmenu';
 import Feladatok,{type Task} from '../Feladatok';
 
 type Subject={id:string;name:string};
@@ -25,7 +27,14 @@ export default function FeladataimOldal(){
   Promise.all([api<{tasks:Task[];schemaReady:boolean}>('tasks'),api<{subjects:Subject[]}>('subjects')]).then(([t,s])=>{
    setTasks(t.tasks);setSchemaReady(t.schemaReady);setSubjects(s.subjects);
    const saved=localPrefs.get<string>('us-subject','');
-   setSubjectId(s.subjects.some(x=>x.id===saved)?saved:'');
+   // A keresőből érkezve (?task=…) minden tantárgy látszik, és odagörgetünk a feladathoz.
+   const kert=new URLSearchParams(window.location.search).get('task');
+   setSubjectId(kert?'':s.subjects.some(x=>x.id===saved)?saved:'');
+   if(kert)setTimeout(()=>{
+    const el=document.getElementById('fl-'+kert);
+    if(el){el.scrollIntoView({behavior:'smooth',block:'center'});el.classList.add('is-found')}
+    window.history.replaceState(null,'','/feladatok');
+   },150);
   }).catch(fail);
  },[phase,fail]);
 
@@ -43,9 +52,13 @@ export default function FeladataimOldal(){
   <header className="rd-top">
    <a href="/" className="rd-back"><Icon name="back" size={20} strokeWidth={2.2}/><span>Tananyag</span></a>
    <h1 className="pg-title">Feladataim</h1>
-   <select className="up-select" value={subjectId} onChange={e=>setSubjectId(e.target.value)} aria-label="Tantárgy" style={{marginLeft:'auto'}}>
+   <select className="up-select" value={subjectId} onChange={e=>setSubjectId(e.target.value)} aria-label="Tantárgy">
     <option value="">Minden tantárgy</option>{subjects.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
    </select>
+   <div className="rd-right">
+    <Kereso onAuth={()=>setPhase('login')}/>
+    <Fiokmenu/>
+   </div>
   </header>
   <main className="pg-main">
    {!schemaReady&&<p className="up-warn">A mentett feladatokhoz le kell futtatni a 010-es adatbázis-frissítést.</p>}

@@ -30,7 +30,7 @@ function Kartya({task,onRemoved,onError,showTopic}:{task:Task;onRemoved:(id:stri
   if(!window.confirm('Törlöd ezt a mentett feladatot? A könyvben semmi nem változik.'))return;
   try{await api('tasks?id='+encodeURIComponent(task.id),{method:'DELETE'});onRemoved(task.id)}catch(e){onError(e)}
  }
- return <article className={'fl-card'+(open?' is-open':'')}>
+ return <article id={'fl-'+task.id} className={'fl-card'+(open?' is-open':'')}>
   {/* eslint-disable-next-line @next/next/no-img-element */}
   {task.image_url&&<img className="fl-img" src={task.image_url} alt="A feladat a könyvből" onClick={()=>setOpen(v=>!v)}/>}
   <div className="fl-body">

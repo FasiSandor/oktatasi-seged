@@ -10,6 +10,8 @@ import {Icon,spineColor} from '../icons';
 import {konyvCim} from '../../../lib/konyv-cim';
 import {GRADE_CHOICES,LEVEL_LABEL,guessGrade,guessLevel} from '../../../lib/besorolas';
 import Belepes from '../Belepes';
+import Kereso from '../Kereso';
+import Fiokmenu from '../Fiokmenu';
 
 type Subject={id:string;name:string};
 type Topic={id:string;name:string;parent_id:string|null};
@@ -410,6 +412,10 @@ function Feltoltes(){
   <header className="rd-top">
    <a href="/" className="rd-back"><Icon name="back" size={20} strokeWidth={2.2}/><span>Tananyag</span></a>
    <h1 style={{margin:0,fontSize:20,fontWeight:800,letterSpacing:'-.2px'}}>Új könyv a könyvtárba</h1>
+   <div className="rd-right">
+    <Kereso onAuth={()=>setPhase('login')}/>
+    <Fiokmenu/>
+   </div>
   </header>
   <div className="up-body">
    <aside className="up-side">

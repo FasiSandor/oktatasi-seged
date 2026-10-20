@@ -7,6 +7,8 @@ import {GRADE_CHOICES,KINDS,KIND_LABEL,LEVEL_LABEL,guessGrade,guessLevel} from '
 import {Icon} from '../icons';
 import Borito from '../Borito';
 import Belepes from '../Belepes';
+import Kereso from '../Kereso';
+import Fiokmenu from '../Fiokmenu';
 
 type Subject={id:string;name:string};
 type Entry={title:string;page:number;group:string};
@@ -131,6 +133,10 @@ function Konyvtar(){
     <input type="search" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Keresés a könyvek között"/>
    </label>
    <a href="/feltoltes" className="us-btn us-btn-teal"><Icon name="upload" size={18}/>Feltöltés</a>
+   <div className="rd-right is-kompakt">
+    <Kereso kompakt onAuth={()=>setPhase('login')}/>
+    <Fiokmenu/>
+   </div>
   </header>
   <main className="pg-main">
    {!schemaReady&&<p className="up-warn">A könyvek besorolásához (tantárgy, évfolyam, szint, típus) le kell futtatni a 008-as adatbázis-frissítést. Addig a könyvek megnyithatók, de a besorolás nem menthető.</p>}

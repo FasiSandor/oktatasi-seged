@@ -1,11 +1,13 @@
 'use client';
 import {useCallback,useEffect,useMemo,useRef,useState} from 'react';
-import {api,ApiError,hasSession,localPrefs,signOut} from '../../lib/client-api';
+import {api,ApiError,hasSession,localPrefs} from '../../lib/client-api';
 import {Icon,spineColor} from './icons';
 import {konyvCim} from '../../lib/konyv-cim';
 import Belepes from './Belepes';
 import Temaoldal,{type LinkRow,type VideoRow} from './Temaoldal';
 import Feladatok,{type Task} from './Feladatok';
+import Kereso from './Kereso';
+import Fiokmenu from './Fiokmenu';
 
 type Subject={id:string;name:string};
 type Topic={id:string;name:string;parent_id:string|null;position:number};
@@ -14,7 +16,6 @@ type Placement={id:string;topic_id:string;grade:number;suggested_minutes:number|
 type Tool={id:string;label:string;url:string;provider:string};
 type Workspace={notes:string;questions:{question:string;answer:string}[]};
 type LastRead={document_id:string;pdf_page:number|null;title:string;filename:string|null};
-type SearchHit={kind:'topic';id:string;name:string;subject_id:string;subject_name:string}|{kind:'doc';id:string;title:string};
 
 /** Egy tanóra 45 perc: az adatbázis percben tárolja az ajánlott időt. */
 const LESSON_MINUTES=45;
@@ -42,18 +43,13 @@ export default function Tananyag(){
  const [notesState,setNotesState]=useState<'idle'|'saving'|'saved'|'unavailable'>('idle');
  const [busy,setBusy]=useState(false);
  const [toast,setToast]=useState('');
- const [menuOpen,setMenuOpen]=useState(false);
- const [query,setQuery]=useState('');
- const [hits,setHits]=useState<SearchHit[]|null>(null);
  const [editBooks,setEditBooks]=useState(false);
  const [lastRead,setLastRead]=useState<LastRead|null>(null);
  const [subjectPlans,setSubjectPlans]=useState<{id:string;name:string;lessons:number}[]>([]);
- const searchBox=useRef<HTMLDivElement>(null);
  const mainRef=useRef<HTMLElement>(null);
  const sideRef=useRef<HTMLElement>(null);
  // Telefonon (egymás alatt a lista és a könyvek) a választás után a könyvekhez görgetünk.
  const scrollPending=useRef(false);
- const menuBox=useRef<HTMLDivElement>(null);
 
  const fail=useCallback((e:unknown)=>{
   if(e instanceof ApiError&&e.status===401){setPhase('login');return}
@@ -294,30 +290,12 @@ export default function Tananyag(){
   });
  }
 
- // Keresés: témakörök és könyvek, rövid késleltetéssel.
- useEffect(()=>{
-  const q=query.trim();
-  if(q.length<2){setHits(null);return}
-  const timer=setTimeout(()=>{
-   api<{documents:{id:string;title:string}[];topics:{id:string;name:string;subject_id:string;subject_name:string}[]}>('search?q='+encodeURIComponent(q))
-    .then(r=>setHits([...r.topics.map(t=>({kind:'topic' as const,...t})),...r.documents.map(d=>({kind:'doc' as const,id:d.id,title:d.title}))]))
-    .catch(fail);
-  },300);
-  return()=>clearTimeout(timer);
- },[query,fail]);
- useEffect(()=>{
-  function outside(e:PointerEvent){
-   if(searchBox.current&&!searchBox.current.contains(e.target as Node))setHits(null);
-   if(menuBox.current&&!menuBox.current.contains(e.target as Node))setMenuOpen(false);
-  }
-  window.addEventListener('pointerdown',outside);return()=>window.removeEventListener('pointerdown',outside);
- },[]);
- function pickHit(h:SearchHit){
-  setHits(null);setQuery('');
-  if(h.kind==='doc'){window.location.href='/olvaso?doc='+encodeURIComponent(h.id);return}
-  const go=()=>{setShowAll(true);setSelectedId(h.id);scrollPending.current=true};
-  if(h.subject_id!==subjectId){setSubjectId(h.subject_id);setTimeout(go,0)}else go();
+ // Találat a keresőből: a téma kinyílik itt a főoldalon (szükség esetén tantárgyat is vált).
+ function pickTopic(id:string,subject:string){
+  const go=()=>{setShowAll(true);setSelectedId(id);scrollPending.current=true};
+  if(subject!==subjectId){localPrefs.set('us-subject',subject);setSubjectId(subject);setTimeout(go,0)}else go();
  }
+
  // A találat altémájának szülőjét is nyissuk ki.
  useEffect(()=>{if(selected?.parent_id&&openId!==selected.parent_id)setOpenId(selected.parent_id)},[selected,openId]);
 
@@ -326,41 +304,14 @@ export default function Tananyag(){
 
  return <div className="us-app">
   <header className="us-top">
-   <a href="/" className="us-brand"><span className="us-logo"><Icon name="book" size={22} stroke="#fff" strokeWidth={1.8}/></span>Oktatási Segéd</a>
+   <a href="/" className="us-brand"><span className="us-logo"><Icon name="book" size={22} stroke="#fff" strokeWidth={1.8}/></span><span className="us-brand-text">Oktatási Segéd</span></a>
    <nav className="us-subjects" aria-label="Tantárgy">
     {subjects.map(s=><button key={s.id} type="button" className="us-pill" aria-pressed={s.id===subjectId} onClick={()=>setSubjectId(s.id)}>{s.name}</button>)}
     <button type="button" className="us-pill us-pill-add" aria-label="Új tantárgy" onClick={addSubject} disabled={busy}><Icon name="plus" size={18}/></button>
    </nav>
-   <div className="us-search" ref={searchBox}>
-    <label className="us-search-field"><Icon name="search" size={18}/><span className="sr-only">Keresés</span>
-     <input type="search" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Keress témakörre vagy könyvre"/>
-    </label>
-    {hits&&<div className="us-search-results" role="listbox" aria-label="Találatok">
-     {hits.length===0&&<p className="us-status" style={{padding:'8px 12px',margin:0}}>Nincs találat.</p>}
-     {hits.map(h=><button key={h.kind+h.id} type="button" role="option" aria-selected="false" onClick={()=>pickHit(h)}>
-      <Icon name={h.kind==='doc'?'book':'lines'} size={18}/>
-      <span style={{flex:1}}>{h.kind==='doc'?konyvCim(h.title):h.name}</span>
-      <small>{h.kind==='doc'?'könyv':h.subject_name}</small>
-     </button>)}
-    </div>}
-   </div>
-   <a href={'/feltoltes'+(selected?'?topicId='+encodeURIComponent(selected.id):'')} className="us-btn us-btn-teal"><Icon name="upload" size={18}/>Feltöltés</a>
-   <div className="us-account" style={{position:'relative'}} ref={menuBox}>
-    <button type="button" className="us-avatar" aria-label="Fiók és beállítások" aria-expanded={menuOpen} onClick={()=>setMenuOpen(v=>!v)}><Icon name="user" size={20}/></button>
-    {menuOpen&&<div className="us-menu">
-     <a href="/feltoltes">Új könyv feltöltése</a>
-     <a href="/konyvtar">Könyvtár</a>
-     <a href="/tanmenet">Tanmenet</a>
-     <a href="/feladatok">Feladataim</a>
-     <a href="/beallitasok">Beállítások</a>
-     <a href="/cloud/videos">Videótár</a>
-     <hr/>
-     <a href="/cloud/curriculum">Tananyagfa (régi nézet)</a>
-     <a href="/cloud">Könyvtár (régi nézet)</a>
-     <hr/>
-     <button type="button" onClick={()=>{void signOut().then(()=>setPhase('login'))}}>Kijelentkezés</button>
-    </div>}
-   </div>
+   <Kereso onTopic={pickTopic} onAuth={()=>setPhase('login')}/>
+   <a href={'/feltoltes'+(selected?'?topicId='+encodeURIComponent(selected.id):'')} className="us-btn us-btn-teal us-upload" aria-label="Feltöltés"><Icon name="upload" size={18}/><span>Feltöltés</span></a>
+   <Fiokmenu onSignedOut={()=>setPhase('login')}/>
   </header>
 
   {subjects.length===0?<main className="us-main" style={{maxWidth:760}}>

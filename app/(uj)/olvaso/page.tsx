@@ -5,6 +5,8 @@ import {api,ApiError,hasSession,localPrefs} from '../../../lib/client-api';
 import {Icon,spineColor} from '../icons';
 import {konyvCim} from '../../../lib/konyv-cim';
 import Belepes from '../Belepes';
+import Kereso from '../Kereso';
+import Fiokmenu from '../Fiokmenu';
 import KonyvLap,{type Box,type Mark,type PdfDoc,type Stroke,type Tool} from './KonyvLap';
 import AiSegitseg,{type Meta} from './AiSegitseg';
 
@@ -256,6 +258,10 @@ function Olvaso(){
      <span>/ {count||'…'}</span>
     </label>
     <button type="button" className="us-icon-btn" aria-label="Következő oldal" onClick={()=>go(page+1)} disabled={!count||page>=count}><Icon name="next" size={18} strokeWidth={2.2}/></button>
+   </div>
+   <div className="rd-right is-kompakt rd-right-olvaso">
+    <Kereso kompakt onAuth={()=>setPhase('login')}/>
+    <Fiokmenu/>
    </div>
    <button type="button" className="us-icon-btn" aria-label={focus?'Oldalsáv vissza':'Csak a könyv'} aria-pressed={focus} onClick={()=>setFocus(v=>!v)}><Icon name="expand" size={18}/></button>
   </header>

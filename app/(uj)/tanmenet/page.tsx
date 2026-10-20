@@ -5,6 +5,8 @@ import {api,ApiError,hasSession,localPrefs} from '../../../lib/client-api';
 import {readPlanExcel,type ParsedPlan} from '../../../lib/tanmenet-excel';
 import {Icon} from '../icons';
 import Belepes from '../Belepes';
+import Kereso from '../Kereso';
+import Fiokmenu from '../Fiokmenu';
 
 type Subject={id:string;name:string};
 type Topic={id:string;name:string;parent_id:string|null};
@@ -188,6 +190,10 @@ function Tanmenet(){
   <header className="rd-top">
    <a href={plan?'/tanmenet':'/'} className="rd-back" onClick={e=>{if(plan){e.preventDefault();setPlan(null);setLessons(null);setPlanId('');window.history.replaceState(null,'','/tanmenet')}}}><Icon name="back" size={20} strokeWidth={2.2}/><span>{plan?'Tanmenetek':'Tananyag'}</span></a>
    <h1 className="pg-title">{plan?plan.name:'Tanmenet'}</h1>
+   <div className="rd-right">
+    <Kereso onAuth={()=>setPhase('login')}/>
+    <Fiokmenu/>
+   </div>
   </header>
   <main className="pg-main" style={{maxWidth:900}}>
    {!schemaReady&&<p className="up-warn">A tanmenethez le kell futtatni a 009-es adatbázis-frissítést.</p>}
