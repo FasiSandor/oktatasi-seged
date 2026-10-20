@@ -1,5 +1,6 @@
 import {NextRequest} from 'next/server';
 import {database,ownerFromRequest,apiError} from '../../../../lib/server';
+import {recordAiUsage} from '../../../../lib/ai-usage';
 export const runtime='nodejs';
 export const maxDuration=60;
 
@@ -14,9 +15,11 @@ type TopicRow={id:string;name:string;parent_id:string|null};
 export async function POST(req:NextRequest){
  try{
   const owner=await ownerFromRequest(req);
-  const {subjectId,chapters}=await req.json() as {subjectId?:string;chapters?:Chapter[]};
+  const {subjectId,chapters,purpose}=await req.json() as {subjectId?:string;chapters?:Chapter[];purpose?:string};
+  // „plan”: tanmenet órái a fejezetek helyett (ugyanaz a párosítás, más magyarázattal).
+  const forPlan=purpose==='plan';
   if(!subjectId||!/^[0-9a-f-]{36}$/i.test(subjectId)||!Array.isArray(chapters)||chapters.length<1||chapters.length>150)throw Error('INVALID');
-  if(chapters.some(c=>!Number.isInteger(c?.key)||typeof c.title!=='string'||c.title.length>160||(c.group!==undefined&&(typeof c.group!=='string'||c.group.length>120))))throw Error('INVALID');
+  if(chapters.some(c=>!Number.isInteger(c?.key)||typeof c.title!=='string'||c.title.length>(forPlan?400:160)||(c.group!==undefined&&(typeof c.group!=='string'||c.group.length>120))))throw Error('INVALID');
   const sql=database();
   const topics=await sql`SELECT t.id,t.name,t.parent_id FROM os_topics t JOIN os_subjects s ON s.id=t.subject_id AND s.owner_id=${owner} WHERE t.owner_id=${owner} AND t.subject_id=${subjectId} ORDER BY t.position,t.name` as TopicRow[];
   if(!topics.length)return Response.json({matches:[]});
@@ -39,7 +42,10 @@ export async function POST(req:NextRequest){
    }
   }
   const chapterLines=chapters.map(c=>'C'+c.key+' = '+c.title.trim()+(c.group?.trim()?' (nagy fejezet: '+c.group.trim()+')':''));
-  const prompt='Egy magyar középiskolai tankönyv fejezeteit kell párosítanod a tanár tananyagfájával.\n'
+  const prompt=(forPlan
+   ?'Egy magyar középiskolai tanmenet óráit kell párosítanod a tanár tananyagfájával. Minden „fejezet” egy tanóra leírása.\n'
+    +'Összefoglaló, gyakorló és témazáró óránál azt a témakört add meg, amelyikről az óra szól. Bevezető, szintfelmérő, ismétlő év végi és szervezési óránál adj null-t.\n'
+   :'Egy magyar középiskolai tankönyv fejezeteit kell párosítanod a tanár tananyagfájával.\n')
    +'A tananyagfában témakörök vannak, alattuk altémák. Minden évfolyam témakörei szerepelnek benne.\n\n'
    +'Szabályok:\n'
    +'- Minden fejezethez a tartalmilag legjobban illő ALTÉMÁT add meg, ha van ilyen.\n'
@@ -53,8 +59,9 @@ export async function POST(req:NextRequest){
    +'Válasz csak JSON: {"matches":[{"chapter":"C0","topic":"T5","confidence":"high"},{"chapter":"C1","topic":null}]}. Minden fejezet szerepeljen.';
 
   const response=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(model)+':generateContent',{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key},body:JSON.stringify({contents:[{role:'user',parts:[{text:prompt}]}],generationConfig:{responseMimeType:'application/json',temperature:0,maxOutputTokens:16384}}),signal:AbortSignal.timeout(55000)});
-  if(!response.ok){console.error('Gemini match HTTP',response.status);return Response.json({error:response.status===429?'Gemini kéréslimit. Próbáld meg később.':'A Gemini-párosítás nem sikerült (HTTP '+response.status+').'},{status:502})}
+  if(!response.ok){console.error('Gemini match HTTP',response.status);await recordAiUsage(owner,forPlan?'plan':'match',model,undefined,false);return Response.json({error:response.status===429?'Gemini kéréslimit. Próbáld meg később.':'A Gemini-párosítás nem sikerült (HTTP '+response.status+').'},{status:502})}
   const output=await response.json();
+  await recordAiUsage(owner,forPlan?'plan':'match',model,output?.usageMetadata);
   const txt=output?.candidates?.[0]?.content?.parts?.map((x:{text?:string})=>x.text||'').join('')||'';
   let parsed:{matches?:{chapter?:string;topic?:string|null;confidence?:string}[]};
   try{parsed=JSON.parse(txt)}catch{return Response.json({error:'A Gemini nem adott értelmezhető párosítást.'},{status:502})}

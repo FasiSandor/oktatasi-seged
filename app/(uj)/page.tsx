@@ -45,6 +45,7 @@ export default function Tananyag(){
  const [hits,setHits]=useState<SearchHit[]|null>(null);
  const [editBooks,setEditBooks]=useState(false);
  const [lastRead,setLastRead]=useState<LastRead|null>(null);
+ const [subjectPlans,setSubjectPlans]=useState<{id:string;name:string;lessons:number}[]>([]);
  const searchBox=useRef<HTMLDivElement>(null);
  const menuBox=useRef<HTMLDivElement>(null);
 
@@ -99,6 +100,8 @@ export default function Tananyag(){
   setOpenId(prefs.open||'');setSelectedId(prefs.selected||'');setShowAll(false);
   setTopics([]);setRows(null);setTopicGrades(new Map());
   loadCurriculum(subjectId).catch(fail);
+  setSubjectPlans([]);
+  api<{plans:{id:string;name:string;lessons:number}[]}>('plans?subjectId='+encodeURIComponent(subjectId)).then(r=>setSubjectPlans(r.plans)).catch(()=>{});
  },[subjectId,loadCurriculum,fail]);
 
  useEffect(()=>{if(subjectId)localPrefs.set('us-view-'+subjectId,{grade,open:openId,selected:selectedId})},[subjectId,grade,openId,selectedId]);
@@ -321,6 +324,7 @@ export default function Tananyag(){
     {menuOpen&&<div className="us-menu">
      <a href="/feltoltes">Új könyv feltöltése</a>
      <a href="/konyvtar">Könyvtár</a>
+     <a href="/tanmenet">Tanmenet</a>
      <a href="/beallitasok">Beállítások</a>
      <a href="/cloud/videos">Videótár</a>
      <hr/>
@@ -348,6 +352,7 @@ export default function Tananyag(){
      <span className="us-continue-body"><small>Folytatás</small><b>{konyvCim(lastRead.title,lastRead.filename)}</b><small>{lastRead.pdf_page?lastRead.pdf_page+'. oldal':'az elejétől'}</small></span>
      <Icon name="arrow" size={18} strokeWidth={2.2}/>
     </a>}
+    {subjectPlans.map(p=><a key={p.id} className="us-plan-link" href={'/tanmenet?plan='+encodeURIComponent(p.id)}><Icon name="lines" size={18}/><span><small>Tanmenet</small><b>{p.name}</b></span><Icon name="next" size={18}/></a>)}
     <div className="us-seg" role="group" aria-label="Évfolyam">
      {GRADES.map(g=><button key={g} type="button" aria-pressed={g===grade} onClick={()=>{setGrade(g);setShowAll(false)}}>{g}.</button>)}
     </div>

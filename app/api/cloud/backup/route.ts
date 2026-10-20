@@ -24,7 +24,10 @@ const TABLES:{name:string;order:string}[]=[
  {name:'os_pdf_marks',order:'id'},
  {name:'os_pdf_ink',order:'id'},
  {name:'os_videos',order:'id'},
- {name:'os_lesson_workspaces',order:'topic_id'}
+ {name:'os_lesson_workspaces',order:'topic_id'},
+ {name:'os_plans',order:'id'},
+ {name:'os_plan_lessons',order:'id'},
+ {name:'os_ai_usage',order:'id'}
 ];
 const PAGE=1000;
 const byName=(n:unknown)=>TABLES.find(t=>t.name===n);
