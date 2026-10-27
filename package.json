@@ -1,6 +1,6 @@
 {
   "name": "oktatasi-seged",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -15,10 +15,10 @@
     "@neondatabase/serverless": "1.0.2",
     "jose": "6.1.0",
     "jszip": "3.10.1",
-    "next": "15.5.27",
+    "next": "15.5.28",
     "pdfjs-dist": "4.10.38",
-    "react": "19.1.7",
-    "react-dom": "19.1.7",
+    "react": "19.1.10",
+    "react-dom": "19.1.10",
     "read-excel-file": "5.8.0"
   },
   "devDependencies": {

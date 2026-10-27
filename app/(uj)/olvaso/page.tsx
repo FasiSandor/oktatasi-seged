@@ -34,7 +34,7 @@ export default function OlvasoOldal(){
 function Olvaso(){
  const params=useSearchParams();
  const topicId=params.get('topic')||'';
- const backLabel=params.get('label')||'Tananyag';
+ const backLabel=params.get('label')||'Főoldal';
  const [phase,setPhase]=useState<'checking'|'login'|'ready'>('checking');
  const [docId,setDocId]=useState(params.get('doc')||'');
  const [page,setPage]=useState(Math.max(1,Number(params.get('page'))||0));
@@ -236,7 +236,7 @@ function Olvaso(){
 
  if(phase==='checking')return <div className="us-login"><p className="us-status">Betöltés…</p></div>;
  if(phase==='login')return <Belepes onDone={()=>setPhase('ready')}/>;
- if(!docId)return <div className="us-login"><p className="us-status">Nincs megadva könyv. <a href="/" style={{textDecoration:'underline'}}>Vissza a tananyaghoz</a></p></div>;
+ if(!docId)return <div className="us-login"><p className="us-status">Nincs megadva könyv. <a href="/" style={{textDecoration:'underline'}}>Vissza a főoldalra</a></p></div>;
 
  const color=tool==='pen'?penColor:markerColor;
  const pageStrokes=strokes.filter(s=>s.pdf_page===page);

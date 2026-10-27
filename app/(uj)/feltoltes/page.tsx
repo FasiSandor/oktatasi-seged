@@ -80,6 +80,8 @@ function Feltoltes(){
  const [error,setError]=useState('');
  const [savedCount,setSavedCount]=useState(0);
  const [aiState,setAiState]=useState<'idle'|'running'|'done'|'failed'>('idle');
+ // Ha egy vagy több adag nem sikerült, az „Újrapróbálás” gomb csak a még üres sorokat küldi újra.
+ const [aiPartial,setAiPartial]=useState(false);
  const pdfRef=useRef<PDFDocumentProxy|null>(null);
 
  const fail=useCallback((e:unknown)=>{
@@ -276,14 +278,14 @@ function Feltoltes(){
  // A Gemini tartalom alapján párosít; a pontos szóegyezést (fent) nem írja felül.
  useEffect(()=>{
   if(step!=='match'||aiState!=='idle'||!topics.length||!subjectId||!rows.length)return;
-  setAiState('running');
+  setAiState('running');setAiPartial(false);
   const chapters=rows.filter(r=>r.state==='open'&&!r.target).map(r=>({key:r.key,title:r.title,group:r.group}));
   if(!chapters.length){setAiState('done');return}
   setStatus(rows.length+' fejezetet találtam. Az AI most keresi a párjukat…');
   // Kis adagokban (egy kérés legfeljebb kb. 1 perc lehet); a sikertelen adag nem állítja meg a többit.
   (async()=>{
    const all:{key:number;topicId:string;confidence:'high'|'low'}[]=[];let failed=0;
-   const size=40,parts=Math.ceil(chapters.length/size);
+   const size=20,parts=Math.ceil(chapters.length/size);
    for(let i=0;i<parts;i++){
     if(parts>1)setStatus(rows.length+' fejezetet találtam. Az AI keresi a párjukat: '+(i+1)+'. rész a '+parts+'-ből…');
     try{
@@ -296,8 +298,8 @@ function Feltoltes(){
    .then(r=>{
     const found=new Map(r.matches.map(m=>[m.key,m]));
     setRows(v=>v.map(row=>{const m=found.get(row.key);return m&&row.state==='open'&&!row.target&&topics.some(t=>t.id===m.topicId)?{...row,target:m.topicId,state:'suggested'}:row}));
-    setStatus(rows.length+' fejezetből '+(r.matches.length+rows.length-chapters.length)+' fejezethez találtam párt.'+(r.failed?' Egy része most nem sikerült, azokat válaszd ki kézzel.':'')+' Az AI javasol, te döntesz.');
-    setAiState('done');
+    setStatus(rows.length+' fejezetből '+(r.matches.length+rows.length-chapters.length)+' fejezethez találtam párt.'+(r.failed?' Egy része most nem sikerült: próbáld újra, vagy válaszd ki kézzel.':'')+' Az AI javasol, te döntesz.');
+    setAiPartial(r.failed>0);setAiState('done');
    })
    .catch(e=>{
     setAiState('failed');
@@ -410,7 +412,7 @@ function Feltoltes(){
 
  return <div className="us-app">
   <header className="rd-top">
-   <a href="/" className="rd-back"><Icon name="back" size={20} strokeWidth={2.2}/><span>Tananyag</span></a>
+   <a href="/" className="rd-back"><Icon name="back" size={20} strokeWidth={2.2}/><span>Főoldal</span></a>
    <h1 style={{margin:0,fontSize:20,fontWeight:800,letterSpacing:'-.2px'}}>Új könyv a könyvtárba</h1>
    <div className="rd-right">
     <Kereso onAuth={()=>setPhase('login')}/>
@@ -497,7 +499,11 @@ function Feltoltes(){
     {step==='match'&&<section className="up-card up-match">
      <div className="up-match-head"><h2>Hova kerüljenek a fejezetek?</h2><span className="us-status">{status}</span></div>
      {audit&&(audit.missing.length>0||audit.duplicated.length>0)&&<p className="up-warn">A fejezetszámozásban {audit.missing.length?'hiány van ('+audit.missing.join(', ')+')':''}{audit.missing.length&&audit.duplicated.length?', és ':''}{audit.duplicated.length?'ismétlődés van ('+audit.duplicated.join(', ')+')':''}. Lehet, hogy egy tartalomjegyzék-oldal kimaradt.</p>}
-     {(topics.length===0||rows.every(r=>!r.target))&&rows.length>0&&<div className="pg-tip" style={{margin:'12px 20px 0'}}>
+     {(aiState==='failed'||aiPartial)&&<div className="pg-tip" style={{margin:'12px 20px 0'}}>
+      <span>Az AI most nem válaszolt minden részre. Az újrapróbálás csak a még üres sorokat küldi el, a már kitöltötteket nem bántja.</span>
+      <button type="button" className="us-btn us-btn-dark" onClick={()=>{setStatus('');setAiPartial(false);setAiState('idle')}}>Újrapróbálás</button>
+     </div>}
+     {(topics.length===0||(aiState==='done'&&!aiPartial&&rows.every(r=>!r.target)))&&rows.length>0&&<div className="pg-tip" style={{margin:'12px 20px 0'}}>
       <span>{topics.length===0?'Ennek a tantárgynak még nincs témamutatója. Felépíthetem ennek a könyvnek a tartalomjegyzékéből, és a fejezeteket rögtön a helyükre teszem.':'Egyik fejezetnek sem találtam párt. Ha ez a könyv új területet fed le, a tartalomjegyzékéből felvehetem a témákat.'}</span>
       <button type="button" className="us-btn us-btn-dark" disabled={building||!subjectId} onClick={()=>void buildIndex()}>{building?'Felvétel…':'Témamutató a tartalomjegyzékből'}</button>
      </div>}
@@ -551,7 +557,7 @@ function Feltoltes(){
      <p className="us-status">{savedCount?savedCount+' helyen kapcsoltam a könyvet a témáidhoz. A tananyagban rányomsz a témára, és ott nyílik ki.':'A fájl a könyvtáradban van. Témához később is rendelheted.'}</p>
      {contentsSaved==='saved'&&<p className="us-status" style={{margin:0}}>A teljes tartalomjegyzéket is elmentettem, a Könyvtárban lapozható.</p>}
      {contentsSaved==='pending-db'&&<p className="up-warn">A teljes tartalomjegyzék és a besorolás mentéséhez a 008-as adatbázis-frissítés kell. A párosítás ettől függetlenül elmentődött.</p>}
-     <div className="up-actions"><a className="us-btn" href="/konyvtar">Könyvtár</a><a className="us-btn us-btn-dark" href="/">Vissza a tananyaghoz</a><button type="button" className="us-btn" onClick={()=>{setStep('pick');setFile(null);setTitle('');setGrade('');setLevel('');setContentsSaved('idle');setDocId('');setRows([]);setThumbs([]);setPicked([]);setAudit(null);setStatus('');setSavedCount(0)}}>Másik könyv</button></div>
+     <div className="up-actions"><a className="us-btn" href="/konyvtar">Könyvtár</a><a className="us-btn us-btn-dark" href="/">Vissza a főoldalra</a><button type="button" className="us-btn" onClick={()=>{setStep('pick');setFile(null);setTitle('');setGrade('');setLevel('');setContentsSaved('idle');setDocId('');setRows([]);setThumbs([]);setPicked([]);setAudit(null);setStatus('');setSavedCount(0)}}>Másik könyv</button></div>
     </section>}
    </main>
   </div>

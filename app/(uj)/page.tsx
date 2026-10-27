@@ -10,7 +10,7 @@ import Kereso from './Kereso';
 import Fiokmenu from './Fiokmenu';
 
 type Subject={id:string;name:string};
-type Topic={id:string;name:string;parent_id:string|null;position:number};
+type Topic={id:string;name:string;parent_id:string|null;position:number;book_count?:number};
 type Profile={id:string;name:string;grade_from:number;grade_to:number};
 type Placement={id:string;topic_id:string;grade:number;suggested_minutes:number|null};
 type Tool={id:string;label:string;url:string;provider:string};
@@ -354,6 +354,7 @@ export default function Tananyag(){
        {open&&<ul className="us-subs">
         {subs.map(s=><li key={s.id}><button type="button" className="us-sub" aria-current={selectedId===s.id} onClick={()=>{setSelectedId(s.id);scrollPending.current=true}}>
          <span>{selectedId===s.id?<span className="us-marker">{s.name}</span>:s.name}</span>
+         {s.book_count!==undefined&&<small aria-label={s.book_count+' könyvben szerepel'} title={s.book_count+' könyvben szerepel'}>{s.book_count}</small>}
         </button></li>)}
         <li><button type="button" className="us-btn us-btn-ghost" onClick={()=>addSub(t)} disabled={busy}><Icon name="plus" size={16}/>Altéma hozzáadása</button></li>
        </ul>}

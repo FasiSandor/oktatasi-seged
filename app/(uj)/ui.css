@@ -418,6 +418,7 @@ label.us-btn{cursor:pointer}
 .st-info dt{background:var(--surface-soft);font-weight:700;color:var(--ink-2)}
 .st-info dd{display:flex;align-items:center;gap:8px;overflow-wrap:anywhere}
 .st-info dd a{color:var(--teal-ink);font-weight:600;text-decoration:underline;text-underline-offset:2px}
+.st-stack{display:flex;flex-direction:column;gap:2px;min-width:0}
 .st-copy{margin-left:auto;flex:none;min-height:32px;padding:0 10px;border-radius:8px;border:1px solid var(--line);background:var(--surface);font-size:12px;font-weight:700}
 .st-head{display:flex;align-items:center;gap:14px}
 .st-head img{width:64px;height:64px;border-radius:14px;box-shadow:0 2px 8px rgba(23,32,51,.2)}

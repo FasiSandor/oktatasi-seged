@@ -51,7 +51,7 @@ export default function FeladataimOldal(){
 
  return <div className="us-app">
   <header className="rd-top">
-   <a href="/" className="rd-back"><Icon name="back" size={20} strokeWidth={2.2}/><span>Tananyag</span></a>
+   <a href="/" className="rd-back"><Icon name="back" size={20} strokeWidth={2.2}/><span>Főoldal</span></a>
    <h1 className="pg-title">Feladataim</h1>
    <select className="up-select" value={subjectId} onChange={e=>setSubjectId(e.target.value)} aria-label="Tantárgy">
     <option value="">Minden tantárgy</option>{subjects.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}

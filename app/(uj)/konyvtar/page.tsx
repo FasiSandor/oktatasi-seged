@@ -127,7 +127,7 @@ function Konyvtar(){
 
  return <div className="us-app">
   <header className="rd-top">
-   <a href="/" className="rd-back"><Icon name="back" size={20} strokeWidth={2.2}/><span>Tananyag</span></a>
+   <a href="/" className="rd-back"><Icon name="back" size={20} strokeWidth={2.2}/><span>Főoldal</span></a>
    <h1 className="pg-title">Könyvtár</h1>
    <label className="us-search-field pg-search"><Icon name="search" size={18}/><span className="sr-only">Keresés a könyvek között</span>
     <input type="search" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Keresés a könyvek között"/>

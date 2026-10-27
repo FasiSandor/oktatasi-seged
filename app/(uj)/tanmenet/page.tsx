@@ -188,7 +188,7 @@ function Tanmenet(){
  const matched=(lessons||[]).filter(l=>l.topic_id).length;
  return <div className="us-app">
   <header className="rd-top">
-   <a href={plan?'/tanmenet':'/'} className="rd-back" onClick={e=>{if(plan){e.preventDefault();setPlan(null);setLessons(null);setPlanId('');window.history.replaceState(null,'','/tanmenet')}}}><Icon name="back" size={20} strokeWidth={2.2}/><span>{plan?'Tanmenetek':'Tananyag'}</span></a>
+   <a href={plan?'/tanmenet':'/'} className="rd-back" onClick={e=>{if(plan){e.preventDefault();setPlan(null);setLessons(null);setPlanId('');window.history.replaceState(null,'','/tanmenet')}}}><Icon name="back" size={20} strokeWidth={2.2}/><span>{plan?'Tanmenetek':'Főoldal'}</span></a>
    <h1 className="pg-title">{plan?plan.name:'Tanmenet'}</h1>
    <div className="rd-right">
     <Kereso onAuth={()=>setPhase('login')}/>

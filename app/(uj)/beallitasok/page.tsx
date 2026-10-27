@@ -24,6 +24,8 @@ const APP={
  name:'Oktatási Segéd',
  id:'oktatasi-seged',
  production:'https://oktatasi-seged.vercel.app',
+ // Amíg a rövid címre nem élesítünk, ott nincs kiszolgált változat (404). Élesítéskor true-ra kell állítani.
+ productionLive:false,
  github:'https://github.com/FasiSandor/oktatasi-seged',
  vercel:'https://vercel.com/fasi-sandor-s-projects/oktatasi-seged',
  vercelUsage:'https://vercel.com/fasi-sandor-s-projects/~/usage',
@@ -146,7 +148,7 @@ export default function Beallitasok(){
 
  return <div className="us-app">
   <header className="rd-top">
-   <a href="/" className="rd-back"><Icon name="back" size={20} strokeWidth={2.2}/><span>Tananyag</span></a>
+   <a href="/" className="rd-back"><Icon name="back" size={20} strokeWidth={2.2}/><span>Főoldal</span></a>
    <h1 className="pg-title">Beállítások</h1>
    <div className="rd-right">
     <Kereso onAuth={()=>setPhase('login')}/>
@@ -232,7 +234,7 @@ export default function Beallitasok(){
      <div><b style={{fontSize:18}}>{APP.name}</b><br/><small className="us-status">eredeti azonosító: {APP.id}</small></div>
     </div>
     <dl className="st-info">
-     <dt>Éles webcím</dt><dd><a href={APP.production} target="_blank" rel="noopener noreferrer">{APP.production}</a><button type="button" className="st-copy" onClick={()=>copy(APP.production)}>Másolás</button></dd>
+     <dt>Éles webcím</dt><dd><span className="st-stack"><a href={APP.production} target="_blank" rel="noopener noreferrer">{APP.production}</a>{!APP.productionLive&&<small className="us-status">még nincs élesítve</small>}</span><button type="button" className="st-copy" onClick={()=>copy(APP.production)}>Másolás</button></dd>
      <dt>Ez a változat</dt><dd><span>{origin}</span><button type="button" className="st-copy" onClick={()=>copy(origin)}>Másolás</button></dd>
      <dt>GitHub</dt><dd><a href={APP.github} target="_blank" rel="noopener noreferrer">FasiSandor/oktatasi-seged</a><button type="button" className="st-copy" onClick={()=>copy(APP.github)}>Másolás</button></dd>
      <dt>Vercel-projekt</dt><dd><a href={APP.vercel} target="_blank" rel="noopener noreferrer">oktatasi-seged</a><button type="button" className="st-copy" onClick={()=>copy(APP.vercel)}>Másolás</button></dd>
