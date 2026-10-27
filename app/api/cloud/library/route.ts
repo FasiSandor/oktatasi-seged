@@ -13,6 +13,17 @@ export async function GET(req:NextRequest){
   const one=req.nextUrl.searchParams.get('doc');
   if(one!==null){
    if(!isUuid(one))throw Error('INVALID');
+   // Újrapárosításhoz: a könyv mentett adatai és minden egyes kapcsolata azonosítóval.
+   if(req.nextUrl.searchParams.get('links')==='1'){
+    const docs=await sql`SELECT id,title,filename,subject_id,grade,level,kind,contents FROM os_documents WHERE id=${one} AND owner_id=${owner} AND state='ready'`;
+    if(!docs.length)throw Error('FORBIDDEN');
+    const links=await sql`
+     SELECT l.id,l.topic_id,l.pdf_page,l.chapter_title,l.category
+     FROM os_document_links l JOIN os_topics t ON t.id=l.topic_id AND t.owner_id=${owner}
+     WHERE l.document_id=${one} AND l.owner_id=${owner}
+     ORDER BY l.pdf_page NULLS FIRST,l.position`;
+    return Response.json({document:docs[0],links});
+   }
    const chapters=await sql`
     SELECT l.pdf_page AS page,COALESCE(l.chapter_title,'') AS title,string_agg(DISTINCT t.name,', ') AS topics
     FROM os_document_links l JOIN os_topics t ON t.id=l.topic_id AND t.owner_id=${owner}

@@ -4,6 +4,7 @@ import {Icon,spineColor} from './icons';
 import Borito from './Borito';
 import {konyvCim} from '../../lib/konyv-cim';
 import {KIND_LABEL} from '../../lib/besorolas';
+import {gyakorloFejezet} from '../../lib/gyakorlo';
 
 export type LinkRow={
  link_id:string;topic_id:string;topic_name:string;depth:number;pdf_page:number|null;chapter_title:string|null;category:string;
@@ -59,7 +60,10 @@ export default function Temaoldal({rows,videos,editing,busy,onOpen,onRename,onUn
      const d=list[0];const color=spineColor(d.id);const isPdf=d.mime_type==='application/pdf';
      const kind=KIND_LABEL[d.kind||d.category||'reference']||'Anyag';
      const chapters=isPdf?list.filter(x=>x.pdf_page):[];
-     const rows=editing?list:chapters.length?chapters:[d];
+     const all=editing?list:chapters.length?chapters:[d];
+     // A gyakorló és témazáró fejezetek a kártya alján, külön alcím alatt (szerkesztéskor nem).
+     const practice=editing?[]:all.filter(c=>c.pdf_page&&gyakorloFejezet(c.chapter_title));
+     const rows=practice.length?all.filter(c=>!practice.includes(c)):all;
      const where=chapters.length>1?chapters.length+' helyen szerepel ez a téma':isPdf?(chapters.length?'A témánál nyílik ki':'Még nincs megadva a hely, az elején nyílik'):'Eredeti fájl';
      return <article key={d.link_id} className={'tb-card'+(editing?' is-edit':'')}>
       <div className="tb-head" style={{borderLeftColor:color}}>
@@ -86,6 +90,14 @@ export default function Temaoldal({rows,videos,editing,busy,onOpen,onRename,onUn
           <span className="tb-text"><span>{c.chapter_title||(isPdf?'Kinyitom':'Megnyitás')}</span>{c.depth>0&&<small>{c.topic_name}</small>}</span>
           <Icon name="arrow" size={16} strokeWidth={2.2}/>
          </button>)}
+       {practice.length>0&&<>
+        <span className="tb-sub">Gyakorlás és témazáró</span>
+        {practice.map(c=><button key={c.link_id} type="button" className="tb-row" onClick={()=>onOpen(c)}>
+         <span className="tb-page">{c.pdf_page+'. o.'}</span>
+         <span className="tb-text"><span>{c.chapter_title}</span>{c.depth>0&&<small>{c.topic_name}</small>}</span>
+         <Icon name="arrow" size={16} strokeWidth={2.2}/>
+        </button>)}
+       </>}
       </div>
      </article>;
     })}

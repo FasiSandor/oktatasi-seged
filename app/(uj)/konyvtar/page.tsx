@@ -35,6 +35,8 @@ function Konyvtar(){
  const [draft,setDraft]=useState<Draft|null>(null);
  const [tocId,setTocId]=useState('');
  const [chapters,setChapters]=useState<Record<string,Chapter[]>>({});
+ // A tartalomjegyzék szerkesztése (csoportok javítása); csak a mentett tartalomjegyzékű könyvnél.
+ const [tocDraft,setTocDraft]=useState<Entry[]|null>(null);
  const [query,setQuery]=useState('');
  const [busy,setBusy]=useState(false);
  const [toast,setToast]=useState('');
@@ -114,12 +116,38 @@ function Konyvtar(){
  }
 
  async function toggleToc(b:Book){
+  setTocDraft(null);
   if(tocId===b.id){setTocId('');return}
   setTocId(b.id);
   if(!b.contents?.length&&!chapters[b.id]){
    try{const r=await api<{chapters:Chapter[]}>('library?doc='+encodeURIComponent(b.id));setChapters(v=>({...v,[b.id]:r.chapters}))}catch(e){fail(e)}
   }
  }
+ /** Új csoport az adott sortól: a sor és az utána következő, eddig vele egy csoportban lévő sorok kapják az új nevet. */
+ function splitGroup(i:number){
+  if(!tocDraft)return;
+  const name=window.prompt('Mi legyen az új csoport neve? Ettől a sortól kezdve, a jelenlegi csoport végéig minden sor ide kerül.',tocDraft[i].title);
+  if(name===null)return;
+  const clean=name.replace(/\s+/g,' ').trim().slice(0,200);
+  if(!clean)return;
+  const old=tocDraft[i].group;
+  setTocDraft(tocDraft.map((e,j)=>{
+   if(j<i)return e;
+   const inBlock=tocDraft.slice(i,j+1).every(x=>x.group===old);
+   return inBlock?{...e,group:clean}:e;
+  }));
+ }
+ async function saveToc(b:Book){
+  if(!tocDraft)return;
+  const contents=tocDraft.map(e=>({...e,group:e.group.replace(/\s+/g,' ').trim().slice(0,200)}));
+  setBusy(true);
+  try{
+   await api('library',{method:'PATCH',body:JSON.stringify({id:b.id,contents})});
+   setBooks(v=>v?v.map(x=>x.id===b.id?{...x,contents}:x):v);
+   setTocDraft(null);setToast('A tartalomjegyzék elmentve. A témákhoz kötött fejezetek nem változtak.');
+  }catch(e){fail(e)}finally{setBusy(false)}
+ }
+
  const read=(b:Book,page?:number|null)=>'/olvaso?doc='+encodeURIComponent(b.id)+(page?'&page='+page:'');
 
  if(phase==='checking')return <div className="us-login"><p className="us-status">Betöltés…</p></div>;
@@ -181,11 +209,29 @@ function Konyvtar(){
         {!b.contents?.length&&!chapters[b.id]&&<p className="us-status">Betöltés…</p>}
         {!b.contents?.length&&chapters[b.id]&&<p className="pg-hint">Ennél a könyvnél csak a témákhoz kötött fejezetek vannak meg. Az „Újrapárosítás” után a teljes tartalomjegyzék is elmentődik.</p>}
         {(b.contents?.length||chapters[b.id])&&toc.length===0&&<p className="us-status">Ehhez a könyvhöz még nincs fejezet mentve.</p>}
-        <ol className="pg-toc-list">
+        {!!b.contents?.length&&(tocDraft?<>
+         <div className="pg-toc-tools">
+          <p className="pg-hint">Írd át a csoport nevét, vagy az „Új csoport innen” gombbal válaszd le a sort és az utána következőket. A témákhoz kötött fejezeteket ez nem változtatja meg.</p>
+          <button type="button" className="us-btn" onClick={()=>setTocDraft(null)}>Mégse</button>
+          <button type="button" className="us-btn us-btn-dark" disabled={busy} onClick={()=>void saveToc(b)}>Mentés</button>
+         </div>
+         <datalist id={'groups-'+b.id}>{[...new Set(tocDraft.map(e=>e.group).filter(Boolean))].map(g=><option key={g} value={g}/>)}</datalist>
+         <ol className="pg-toc-edit">
+          {tocDraft.map((e,i)=><li key={i} className={i>0&&tocDraft[i-1].group!==e.group?'is-start':undefined}>
+           <span className="us-ch-page">{e.page}. o.</span>
+           <b>{e.title}</b>
+           <span className="pg-toc-edit-row">
+            <input value={e.group} list={'groups-'+b.id} aria-label={e.title+': csoport'} placeholder="Csoport nélkül" onChange={ev=>setTocDraft(tocDraft.map((x,j)=>j===i?{...x,group:ev.target.value}:x))}/>
+            <button type="button" className="us-btn us-btn-ghost" onClick={()=>splitGroup(i)}>Új csoport innen</button>
+           </span>
+          </li>)}
+         </ol>
+        </>:<div className="pg-toc-tools"><span/><button type="button" className="us-btn us-btn-ghost" onClick={()=>setTocDraft(b.contents!.map(e=>({...e,group:e.group||''})))}><Icon name="pen" size={16}/>Csoportok javítása</button></div>)}
+        {!tocDraft&&<ol className="pg-toc-list">
          {toc.map((c,i)=><li key={i}>{c.group&&(i===0||toc[i-1].group!==c.group)&&b.contents?.length?<span className="pg-toc-group">{c.group}</span>:null}
           <a href={read(b,c.page)} className="us-ch-btn"><span className="us-ch-page">{c.page}. o.</span><span className="us-ch-title"><span>{c.title}</span>{!b.contents?.length&&c.group&&<small className="us-ch-topic">{c.group}</small>}</span></a>
          </li>)}
-        </ol>
+        </ol>}
        </div>}
       </article>;
      })}
