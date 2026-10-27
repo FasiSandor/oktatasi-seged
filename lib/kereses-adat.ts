@@ -35,8 +35,8 @@ export async function keresoElemek(owner:string):Promise<KeresoElem[]>{
    catch(e){if(!schemaMissing(e))throw e;return (await sql`SELECT id,title,filename,mime_type,NULL::jsonb AS contents FROM os_documents WHERE owner_id=${owner} AND state='ready'`) as Doc[]}
   })(),
   biztos<Link>(sql`SELECT DISTINCT document_id,chapter_title,pdf_page FROM os_document_links WHERE owner_id=${owner} AND chapter_title IS NOT NULL AND chapter_title<>''`),
-  biztos<Note>(sql`SELECT n.id,n.document_id,n.pdf_page,n.body,d.title,d.filename FROM os_pdf_notes n JOIN os_documents d ON d.id=n.document_id WHERE n.owner_id=${owner}`),
-  biztos<Task>(sql`SELECT k.id,k.answer,k.note,t.name AS topic_name,d.title,d.filename,k.pdf_page FROM os_tasks k LEFT JOIN os_topics t ON t.id=k.topic_id LEFT JOIN os_documents d ON d.id=k.document_id WHERE k.owner_id=${owner}`),
+  biztos<Note>(sql`SELECT n.id,n.document_id,n.pdf_page,n.body,d.title,d.filename FROM os_pdf_notes n JOIN os_documents d ON d.id=n.document_id AND d.state='ready' WHERE n.owner_id=${owner}`),
+  biztos<Task>(sql`SELECT k.id,k.answer,k.note,t.name AS topic_name,d.title,d.filename,k.pdf_page FROM os_tasks k LEFT JOIN os_topics t ON t.id=k.topic_id LEFT JOIN os_documents d ON d.id=k.document_id WHERE k.owner_id=${owner} AND (d.id IS NULL OR d.state<>'archived')`),
   biztos<Lesson>(sql`SELECT l.id,l.content,l.lesson_no,p.name AS plan_name,l.topic_id,p.subject_id FROM os_plan_lessons l JOIN os_plans p ON p.id=l.plan_id WHERE l.owner_id=${owner}`),
   biztos<Video>(sql`SELECT id,title,note,url,provider FROM os_videos WHERE owner_id=${owner}`)
  ]);

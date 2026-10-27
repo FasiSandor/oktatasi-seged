@@ -26,11 +26,11 @@ export async function GET(req:NextRequest){
      )
      SELECT k.id,k.topic_id,t.name AS topic_name,k.document_id,d.title AS document_title,d.filename AS document_filename,k.pdf_page,k.image_key,k.mode,k.answer,k.note,k.created_at
      FROM os_tasks k JOIN tree ON tree.id=k.topic_id LEFT JOIN os_topics t ON t.id=k.topic_id LEFT JOIN os_documents d ON d.id=k.document_id AND d.owner_id=${owner}
-     WHERE k.owner_id=${owner} ORDER BY k.created_at DESC LIMIT 100`
+     WHERE k.owner_id=${owner} AND (d.id IS NULL OR d.state<>'archived') ORDER BY k.created_at DESC LIMIT 100`
     :await sql`
      SELECT k.id,k.topic_id,t.name AS topic_name,COALESCE(t.subject_id,d.subject_id) AS subject_id,k.document_id,d.title AS document_title,d.filename AS document_filename,k.pdf_page,k.image_key,k.mode,k.answer,k.note,k.created_at
      FROM os_tasks k LEFT JOIN os_topics t ON t.id=k.topic_id LEFT JOIN os_documents d ON d.id=k.document_id AND d.owner_id=${owner}
-     WHERE k.owner_id=${owner} ORDER BY k.created_at DESC LIMIT 500`;
+     WHERE k.owner_id=${owner} AND (d.id IS NULL OR d.state<>'archived') ORDER BY k.created_at DESC LIMIT 500`;
    return Response.json({tasks:await withImages(rows),schemaReady:true});
   }catch(e){
    if(!schemaMissing(e))throw e;

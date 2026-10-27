@@ -41,6 +41,8 @@ function Konyvtar(){
  const [query,setQuery]=useState('');
  const [busy,setBusy]=useState(false);
  const [toast,setToast]=useState('');
+ // A lomtárba tett könyv, amíg a visszavonás gomb látszik.
+ const [undo,setUndo]=useState<Book|null>(null);
 
  const fail=useCallback((e:unknown)=>{
   if(e instanceof ApiError&&e.status===401){setPhase('login');return}
@@ -76,6 +78,28 @@ function Konyvtar(){
  // eslint-disable-next-line react-hooks/exhaustive-deps
  },[books]);
 
+ async function trash(b:Book){
+  const name=konyvCim(b.title,b.filename);
+  const mit=b.link_count?b.link_count+' témához kötött hivatkozása':'';
+  if(!window.confirm('A(z) „'+name+'” a lomtárba kerül. Mindenhonnan eltűnik'+(mit?' (vele '+mit+' is)':'')+', de 30 napig a Beállítások → Lomtár alatt visszahozható. Utána minden vele együtt véglegesen törlődik: a párosítások, a kiemelések és cetlik, a belőle mentett feladatok és maga a fájl. Mehet?'))return;
+  setBusy(true);
+  try{
+   await api('lomtar',{method:'POST',body:JSON.stringify({action:'torles',id:b.id})});
+   setBooks(v=>v?v.filter(x=>x.id!==b.id):v);
+   if(editId===b.id){setEditId('');setDraft(null)}
+   if(tocId===b.id){setTocId('');setTocDraft(null)}
+   setUndo(b);setToast('A lomtárba került: '+name+'. 30 napig visszahozható.');
+  }catch(e){fail(e)}finally{setBusy(false)}
+ }
+ async function restore(){
+  if(!undo)return;
+  const b=undo;setBusy(true);
+  try{
+   await api('lomtar',{method:'POST',body:JSON.stringify({action:'vissza',id:b.id})});
+   setUndo(null);setToast('Visszahoztam: '+konyvCim(b.title,b.filename));
+   await load();
+  }catch(e){fail(e)}finally{setBusy(false)}
+ }
  function openEdit(b:Book){
   setEditId(b.id);
   const name=konyvCim(b.title,b.filename);
@@ -192,6 +216,7 @@ function Konyvtar(){
           {(isPdf||(isNote&&!!b.contents?.length))&&<button type="button" className="us-btn us-btn-ghost" aria-expanded={tocId===b.id} onClick={()=>void toggleToc(b)}><Icon name="lines" size={16}/>Tartalomjegyzék</button>}
           {schemaReady&&<button type="button" className="us-btn us-btn-ghost" onClick={()=>editId===b.id?(setEditId(''),setDraft(null)):openEdit(b)}><Icon name="pen" size={16}/>Besorolás</button>}
           {isPdf&&<a className="us-btn us-btn-ghost" href={'/feltoltes?doc='+encodeURIComponent(b.id)}><Icon name="next" size={16}/>Újrapárosítás</a>}
+          <button type="button" className="us-btn us-btn-ghost pg-trash" disabled={busy} onClick={()=>void trash(b)}><Icon name="trash" size={16}/>Törlés</button>
          </div>
         </div>
        </div>
@@ -239,6 +264,6 @@ function Konyvtar(){
     </div>
    </section>)}
   </main>
-  {toast&&<div className="us-toast" role="status"><span style={{flex:1}}>{toast}</span><button type="button" onClick={()=>setToast('')}>Rendben</button></div>}
+  {toast&&<div className="us-toast" role="status"><span style={{flex:1}}>{toast}</span>{undo&&toast.startsWith('A lomtárba')&&<button type="button" disabled={busy} onClick={()=>void restore()}>Visszavonás</button>}<button type="button" onClick={()=>{setToast('');setUndo(null)}}>Rendben</button></div>}
  </div>;
 }

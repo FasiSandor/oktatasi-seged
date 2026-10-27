@@ -14,6 +14,7 @@ type Subject={id:string;name:string};
 type Doc={id:string;title:string;filename:string|null;mime_type:string;created_at:string;subject_id?:string|null;role?:string};
 type Arva={key:string;name:string;size:number;modified:string|null};
 type Tarhely={osszes:{db:number;bajt:number};gazdatlan:{db:number;bajt:number;lista:Arva[]};csonka:boolean};
+type Lomtar={items:{id:string;title:string;filename:string|null;mime_type:string;byte_size:number|null;archived_at:string|null;link_count:number}[];napok:number;schemaReady:boolean};
 type Month={month:string;calls:number;failed:number;input:number;output:number;usd:number;unknownPrice:boolean;features:Record<string,number>};
 
 const ROLE_LABEL:Record<string,string>={plan:'Tanmenet',requirement:'Követelmény',other:'Egyéb dokumentum'};
@@ -71,6 +72,8 @@ export default function Beallitasok(){
  const [tar,setTar]=useState<Tarhely|null>(null);
  const [tarStatus,setTarStatus]=useState('');
  const [origin,setOrigin]=useState('');
+ const [lomtar,setLomtar]=useState<Lomtar|null>(null);
+ const [lomStatus,setLomStatus]=useState('');
  useEffect(()=>{setOrigin(window.location.origin)},[]);
 
  const fail=useCallback((e:unknown)=>{
@@ -88,6 +91,7 @@ export default function Beallitasok(){
   if(phase!=='ready')return;
   load().catch(fail);
   api<{months:Month[];model:string;schemaReady:boolean}>('usage').then(setUsage).catch(()=>{});
+  api<Lomtar>('lomtar',{},60000).then(setLomtar).catch(()=>{});
   authClient().getSession().then(r=>setEmail(r.data?.user?.email||'')).catch(()=>{});
  },[phase,load,fail]);
 
@@ -158,6 +162,45 @@ export default function Beallitasok(){
    setTar(null);
    setTarStatus('Kész: '+r.torolve+' fájlt töröltem ('+mb(r.bajt)+').'+(r.kihagyva?' '+r.kihagyva+' fájlt kihagytam, mert közben gazdát kapott vagy már nem volt meg.':''));
   }catch(e){setTarStatus('');fail(e)}finally{setBusy(false)}
+ }
+ // Hány nap van még hátra a végleges törlésig.
+ function hatra(at:string|null,napok:number){
+  if(!at)return '';
+  const nap=Math.ceil((Date.parse(at)+napok*86400000-Date.now())/86400000);
+  return nap<=1?'holnap véglegesen törlődik':'még '+nap+' napig visszahozható';
+ }
+ async function lomVissza(id:string,name:string){
+  setBusy(true);setLomStatus('');
+  try{
+   await api('lomtar',{method:'POST',body:JSON.stringify({action:'vissza',id})});
+   setLomtar(v=>v?{...v,items:v.items.filter(x=>x.id!==id)}:v);
+   setLomStatus('Visszahoztam: '+name+'. Ott van a Könyvtárban, minden párosításával együtt.');
+   await load();
+  }catch(e){fail(e)}finally{setBusy(false)}
+ }
+ async function lomVegleges(id:string,name:string){
+  if(!window.confirm('A(z) „'+name+'” véglegesen törlődik, minden vele együtt: a párosítások, a kiemelések és cetlik, a belőle mentett feladatok és maga a fájl. Ez nem vonható vissza. Mehet?'))return;
+  setBusy(true);setLomStatus('Törlés…');
+  try{
+   await api('lomtar',{method:'POST',body:JSON.stringify({action:'vegleges',id})},60000);
+   setLomtar(v=>v?{...v,items:v.items.filter(x=>x.id!==id)}:v);
+   setLomStatus('Véglegesen töröltem: '+name+'.');
+  }catch(e){setLomStatus('');fail(e)}finally{setBusy(false)}
+ }
+ async function lomUrites(){
+  if(!lomtar?.items.length)return;
+  if(!window.confirm('A lomtárban lévő '+lomtar.items.length+' könyv véglegesen törlődik, mindegyik minden vele együtt. Ez nem vonható vissza. Mehet?'))return;
+  setBusy(true);setLomStatus('A lomtár ürítése…');
+  try{
+   let osszes=0;
+   for(let i=0;i<10;i++){
+    const r=await api<{torolve:number;maradt:number}>('lomtar',{method:'POST',body:JSON.stringify({action:'urites'})},60000);
+    osszes+=r.torolve;
+    if(!r.maradt||!r.torolve)break;
+   }
+   setLomtar(await api<Lomtar>('lomtar',{},60000));
+   setLomStatus('Kész: '+osszes+' könyvet töröltem véglegesen.');
+  }catch(e){setLomStatus('');fail(e)}finally{setBusy(false)}
  }
  function copy(text:string){navigator.clipboard?.writeText(text).then(()=>setToast('Kimásolva.'),()=>setToast(text))}
 
@@ -248,6 +291,22 @@ export default function Beallitasok(){
      <div className="up-actions"><button type="button" className="us-btn" onClick={()=>setPending(null)}>Mégse</button><button type="button" className="us-btn us-btn-dark" disabled={busy} onClick={()=>void runRestore()}>Visszaállítás indítása</button></div>
     </div>}
     {restoreLines.length>0&&<ul className="st-check">{restoreLines.map((l,i)=><li key={i}>{l}</li>)}</ul>}
+   </section>
+
+   <section className="pg-section" aria-labelledby="lom-h">
+    <h2 id="lom-h">Lomtár</h2>
+    <p>A Könyvtárban törölt könyvek és jegyzetek ide kerülnek. Innen {lomtar?.napok??30} napig minden párosításukkal, kiemelésükkel és mentett feladatukkal együtt visszahozhatók. Utána, vagy ha itt véglegesen törlöd őket, minden vele együtt megszűnik, a fájl is.</p>
+    {lomtar&&!lomtar.schemaReady&&<p className="up-warn">A lomtárhoz le kell futtatni a 011-es adatbázis-frissítést. Addig könyvet törölni sem lehet.</p>}
+    {lomtar?.schemaReady&&(lomtar.items.length?<>
+     <ul className="pg-trash-list">{lomtar.items.map(x=>{const name=konyvCim(x.title,x.filename);return <li key={x.id}>
+      <span className="pg-trash-name">{name}<small>{[x.archived_at?'törölve: '+new Date(x.archived_at).toLocaleDateString('hu-HU'):'',hatra(x.archived_at,lomtar.napok),x.link_count?x.link_count+' hivatkozás':''].filter(Boolean).join(' · ')}</small></span>
+      <button type="button" className="us-btn" disabled={busy} onClick={()=>void lomVissza(x.id,name)}><Icon name="undo" size={16}/>Visszahozás</button>
+      <button type="button" className="us-btn us-btn-ghost is-danger" disabled={busy} onClick={()=>void lomVegleges(x.id,name)}><Icon name="trash" size={16}/>Végleges törlés</button>
+     </li>})}</ul>
+     <div><button type="button" className="us-btn is-danger" disabled={busy} onClick={()=>void lomUrites()}><Icon name="trash" size={18}/>Lomtár ürítése</button></div>
+    </>:<p className="us-status" style={{margin:0}}>A lomtár üres.</p>)}
+    {!lomtar&&<p className="us-status" style={{margin:0}}>Betöltés…</p>}
+    {lomStatus&&<p className="pg-progress" role="status">{lomStatus}</p>}
    </section>
 
    <section className="pg-section" aria-labelledby="tar-h">
