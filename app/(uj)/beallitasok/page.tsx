@@ -12,11 +12,13 @@ import Fiokmenu from '../Fiokmenu';
 
 type Subject={id:string;name:string};
 type Doc={id:string;title:string;filename:string|null;mime_type:string;created_at:string;subject_id?:string|null;role?:string};
+type Arva={key:string;name:string;size:number;modified:string|null};
+type Tarhely={osszes:{db:number;bajt:number};gazdatlan:{db:number;bajt:number;lista:Arva[]};csonka:boolean};
 type Month={month:string;calls:number;failed:number;input:number;output:number;usd:number;unknownPrice:boolean;features:Record<string,number>};
 
 const ROLE_LABEL:Record<string,string>={plan:'Tanmenet',requirement:'Követelmény',other:'Egyéb dokumentum'};
 const FEATURE_LABEL:Record<string,string>={contents:'Tartalomjegyzék-olvasás',match:'Fejezetek párosítása',plan:'Tanmenet párosítása',help:'Segítség feladathoz',other:'Egyéb'};
-const MIME:Record<string,string>={pdf:'application/pdf',docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',xlsx:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',pptx:'application/vnd.openxmlformats-officedocument.presentationml.presentation',jpg:'image/jpeg',jpeg:'image/jpeg',png:'image/png',webp:'image/webp'};
+const MIME:Record<string,string>={pdf:'application/pdf',docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',xlsx:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',pptx:'application/vnd.openxmlformats-officedocument.presentationml.presentation',jpg:'image/jpeg',jpeg:'image/jpeg',png:'image/png',webp:'image/webp',txt:'text/plain',md:'text/markdown'};
 const XLSX=MIME.xlsx;
 
 // Az alkalmazás azonosítói (Beállítások → Alkalmazás adatai). Ellenőrizve: 2026. október.
@@ -47,6 +49,7 @@ function saveBlob(name:string,blob:Blob){
  const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();
  setTimeout(()=>URL.revokeObjectURL(url),60000);
 }
+const mb=(b:number)=>b<1048576?Math.max(1,Math.round(b/1024))+' KB':(b/1048576).toLocaleString('hu-HU',{maximumFractionDigits:1})+' MB';
 const huf=(usd:number)=>Math.round(usd*USD_HUF).toLocaleString('hu-HU')+' Ft';
 const monthName=(m:string)=>{const [y,mm]=m.split('-').map(Number);return new Date(y,mm-1,1).toLocaleDateString('hu-HU',{year:'numeric',month:'long'})};
 
@@ -65,6 +68,8 @@ export default function Beallitasok(){
  const [restoreLines,setRestoreLines]=useState<string[]>([]);
  const [email,setEmail]=useState('');
  const [toast,setToast]=useState('');
+ const [tar,setTar]=useState<Tarhely|null>(null);
+ const [tarStatus,setTarStatus]=useState('');
  const [origin,setOrigin]=useState('');
  useEffect(()=>{setOrigin(window.location.origin)},[]);
 
@@ -90,8 +95,9 @@ export default function Beallitasok(){
 
  async function upload(file:File|null){
   if(!file||!subjectId)return;
-  const mime=file.type||MIME[file.name.split('.').pop()?.toLowerCase()||'']||'';
-  if(!mime){setToast('Ezt a fájltípust nem tudom fogadni. PDF, Word, Excel, PowerPoint vagy kép lehet.');return}
+  const ext=file.name.split('.').pop()?.toLowerCase()||'';
+  const mime=ext==='md'||ext==='txt'?MIME[ext]:file.type||MIME[ext]||'';
+  if(!mime){setToast('Ezt a fájltípust nem tudom fogadni. PDF, Word, szöveg, Excel, PowerPoint vagy kép lehet.');return}
   setBusy(true);setDocStatus('Feltöltés…');
   try{
    const up=await api<{documentId:string;uploadUrl:string}>('upload',{method:'POST',body:JSON.stringify({filename:file.name,title:file.name.replace(/\.[a-z0-9]{2,5}$/i,''),mimeType:mime,size:file.size})});
@@ -135,6 +141,24 @@ export default function Beallitasok(){
    setBackupStatus('Kész. A visszaállítás csak a hiányzó adatot vette vissza.');setPending(null);
   }catch(e){setBackupStatus('');fail(e)}finally{setBusy(false)}
  }
+ async function tarhelyEllenorzes(){
+  setBusy(true);setTar(null);setTarStatus('A tárhely átnézése…');
+  try{
+   const r=await api<Tarhely>('tarhely',{},60000);
+   setTar(r);
+   setTarStatus(r.osszes.db+' fájl van a tárhelyen, összesen '+mb(r.osszes.bajt)+'. '+(r.gazdatlan.db?'Ebből '+r.gazdatlan.db+' fájl ('+mb(r.gazdatlan.bajt)+') gazdátlan, ezeket lent látod.':'Gazdátlan fájlt nem találtam, nincs mit takarítani.')+(r.csonka?' (Nagyon sok fájl van, csak az első 20 000-et néztem át.)':''));
+  }catch(e){setTarStatus('');fail(e)}finally{setBusy(false)}
+ }
+ async function tarhelyTorles(){
+  if(!tar?.gazdatlan.db)return;
+  if(!window.confirm(tar.gazdatlan.db+' gazdátlan fájlt ('+mb(tar.gazdatlan.bajt)+') véglegesen törlök a tárhelyről. Egyik könyvedhez, dokumentumodhoz vagy mentett feladatodhoz sem tartoznak. Ez nem vonható vissza. Mehet?'))return;
+  setBusy(true);setTarStatus('Törlés…');
+  try{
+   const r=await api<{torolve:number;bajt:number;kihagyva:number}>('tarhely',{method:'POST',body:JSON.stringify({keys:tar.gazdatlan.lista.map(x=>x.key)})},60000);
+   setTar(null);
+   setTarStatus('Kész: '+r.torolve+' fájlt töröltem ('+mb(r.bajt)+').'+(r.kihagyva?' '+r.kihagyva+' fájlt kihagytam, mert közben gazdát kapott vagy már nem volt meg.':''));
+  }catch(e){setTarStatus('');fail(e)}finally{setBusy(false)}
+ }
  function copy(text:string){navigator.clipboard?.writeText(text).then(()=>setToast('Kimásolva.'),()=>setToast(text))}
 
  if(phase==='checking')return <div className="us-login"><p className="us-status">Betöltés…</p></div>;
@@ -166,7 +190,7 @@ export default function Beallitasok(){
      <label className="us-field">Mi ez?<select className="up-select" value={role} onChange={e=>setRole(e.target.value)}>{Object.entries(ROLE_LABEL).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>
     </div>
     <label className={'up-drop'+(!schemaReady||busy||!subjectId?' is-disabled':'')} style={{minHeight:110}}>
-     <input type="file" disabled={!schemaReady||busy||!subjectId} accept=".pdf,.docx,.xlsx,.pptx,.png,.jpg,.jpeg,.webp" onChange={e=>{void upload(e.currentTarget.files?.[0]||null);e.currentTarget.value=''}}/>
+     <input type="file" disabled={!schemaReady||busy||!subjectId} accept=".pdf,.docx,.txt,.md,.xlsx,.pptx,.png,.jpg,.jpeg,.webp" onChange={e=>{void upload(e.currentTarget.files?.[0]||null);e.currentTarget.value=''}}/>
      <span className="up-drop-icon"><Icon name="upload" size={22}/></span>
      <b>{ROLE_LABEL[role]} feltöltése</b>
      <small>PDF, Word, Excel vagy PowerPoint</small>
@@ -224,6 +248,17 @@ export default function Beallitasok(){
      <div className="up-actions"><button type="button" className="us-btn" onClick={()=>setPending(null)}>Mégse</button><button type="button" className="us-btn us-btn-dark" disabled={busy} onClick={()=>void runRestore()}>Visszaállítás indítása</button></div>
     </div>}
     {restoreLines.length>0&&<ul className="st-check">{restoreLines.map((l,i)=><li key={i}>{l}</li>)}</ul>}
+   </section>
+
+   <section className="pg-section" aria-labelledby="tar-h">
+    <h2 id="tar-h">Tárhely-takarítás</h2>
+    <p>Megkeresem a privát tárhelyen azokat a fájlokat, amelyek egyik könyvedhez, dokumentumodhoz vagy mentett feladatodhoz sem tartoznak, például egy félbemaradt feltöltés maradékát. Előbb csak megmutatom őket, törölni csak a jóváhagyásod után fogok. Az elmúlt 24 órában feltöltött fájlokhoz nem nyúlok.</p>
+    <div><button type="button" className="us-btn" disabled={busy} onClick={()=>void tarhelyEllenorzes()}><Icon name="search" size={18}/>Tárhely ellenőrzése</button></div>
+    {tarStatus&&<p className="pg-progress" role="status">{tarStatus}</p>}
+    {tar&&tar.gazdatlan.db>0&&<>
+     <ul className="st-check">{tar.gazdatlan.lista.map(x=><li key={x.key}><span className="bad">•</span>{x.name} · {mb(x.size)}{x.modified?' · '+new Date(x.modified).toLocaleDateString('hu-HU'):''}</li>)}</ul>
+     <div className="up-actions"><button type="button" className="us-btn" onClick={()=>{setTar(null);setTarStatus('')}}>Mégse</button><button type="button" className="us-btn us-btn-dark" disabled={busy} onClick={()=>void tarhelyTorles()}><Icon name="trash" size={18}/>Gazdátlan fájlok törlése</button></div>
+    </>}
    </section>
 
    <section className="pg-section" aria-labelledby="app-h">

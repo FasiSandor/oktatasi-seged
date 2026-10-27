@@ -53,7 +53,8 @@ export async function GET(req:NextRequest){
  }catch(e){return apiError(e)}
 }
 
-type Entry={title:string;page:number;group:string};
+// skip: a tanár a párosításnál kihagyta ezt a sort; újrapárosításnál nem kér rá újra AI-javaslatot.
+type Entry={title:string;page:number;group:string;skip?:true};
 function cleanContents(raw:unknown):Entry[]|null{
  if(raw===null)return null;
  if(!Array.isArray(raw)||raw.length>1500)throw Error('INVALID');
@@ -62,7 +63,7 @@ function cleanContents(raw:unknown):Entry[]|null{
   const page=Number(x?.page);
   const group=typeof x?.group==='string'?x.group.replace(/\s+/g,' ').trim().slice(0,200):'';
   if(!title||!Number.isInteger(page)||page<1||page>100000)throw Error('INVALID');
-  return {title,page,group};
+  return x?.skip===true?{title,page,group,skip:true}:{title,page,group};
  });
 }
 

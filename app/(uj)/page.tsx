@@ -3,6 +3,7 @@ import {useCallback,useEffect,useMemo,useRef,useState} from 'react';
 import {api,ApiError,hasSession,localPrefs} from '../../lib/client-api';
 import {Icon,spineColor} from './icons';
 import {konyvCim} from '../../lib/konyv-cim';
+import {jegyzetE,megnyitoCim} from '../../lib/jegyzet';
 import Belepes from './Belepes';
 import Temaoldal,{type LinkRow,type VideoRow} from './Temaoldal';
 import Feladatok,{type Task} from './Feladatok';
@@ -284,6 +285,8 @@ export default function Tananyag(){
    window.location.href='/olvaso?'+params.toString();
    return;
   }
+  // Word- és szöveges jegyzet: a saját olvasójában, címsoros tartalomjegyzékkel.
+  if(jegyzetE(d.mime_type)){window.location.href=megnyitoCim(d.id,d.mime_type);return}
   await run(async()=>{
    const {url}=await api<{url:string}>('download?id='+encodeURIComponent(d.id));
    window.open(url,'_blank','noopener,noreferrer');

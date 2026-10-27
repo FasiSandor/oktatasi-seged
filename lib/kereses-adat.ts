@@ -1,5 +1,6 @@
 import {database,schemaMissing} from './server';
 import {konyvCim} from './konyv-cim';
+import {jegyzetE,megnyitoCim} from './jegyzet';
 
 /** Egy kereshető elem. A `cel` mondja meg, hová ugrik a találat. */
 export type KeresoElem={
@@ -21,7 +22,7 @@ const olvaso=(doc:string,page?:number|null)=>'/olvaso?doc='+encodeURIComponent(d
 export async function keresoElemek(owner:string):Promise<KeresoElem[]>{
  const sql=database();
  type Topic={id:string;name:string;subject_id:string;subject_name:string;parent_name:string|null};
- type Doc={id:string;title:string;filename:string|null;contents:{title:string;page:number;group?:string}[]|null};
+ type Doc={id:string;title:string;filename:string|null;mime_type:string|null;contents:{title:string;page:number;group?:string}[]|null};
  type Link={document_id:string;chapter_title:string;pdf_page:number|null};
  type Note={id:string;document_id:string;pdf_page:number;body:string;title:string;filename:string|null};
  type Task={id:string;answer:string;note:string;topic_name:string|null;title:string|null;filename:string|null;pdf_page:number|null};
@@ -30,8 +31,8 @@ export async function keresoElemek(owner:string):Promise<KeresoElem[]>{
  const [topics,docs,links,notes,tasks,lessons,videos]=await Promise.all([
   biztos<Topic>(sql`SELECT t.id,t.name,t.subject_id,s.name AS subject_name,p.name AS parent_name FROM os_topics t JOIN os_subjects s ON s.id=t.subject_id AND s.owner_id=${owner} LEFT JOIN os_topics p ON p.id=t.parent_id WHERE t.owner_id=${owner} ORDER BY s.position,t.position`),
   (async()=>{
-   try{return (await sql`SELECT id,title,filename,contents FROM os_documents WHERE owner_id=${owner} AND state='ready' ORDER BY created_at DESC`) as Doc[]}
-   catch(e){if(!schemaMissing(e))throw e;return (await sql`SELECT id,title,filename,NULL::jsonb AS contents FROM os_documents WHERE owner_id=${owner} AND state='ready'`) as Doc[]}
+   try{return (await sql`SELECT id,title,filename,mime_type,contents FROM os_documents WHERE owner_id=${owner} AND state='ready' ORDER BY created_at DESC`) as Doc[]}
+   catch(e){if(!schemaMissing(e))throw e;return (await sql`SELECT id,title,filename,mime_type,NULL::jsonb AS contents FROM os_documents WHERE owner_id=${owner} AND state='ready'`) as Doc[]}
   })(),
   biztos<Link>(sql`SELECT DISTINCT document_id,chapter_title,pdf_page FROM os_document_links WHERE owner_id=${owner} AND chapter_title IS NOT NULL AND chapter_title<>''`),
   biztos<Note>(sql`SELECT n.id,n.document_id,n.pdf_page,n.body,d.title,d.filename FROM os_pdf_notes n JOIN os_documents d ON d.id=n.document_id WHERE n.owner_id=${owner}`),
@@ -46,10 +47,12 @@ export async function keresoElemek(owner:string):Promise<KeresoElem[]>{
  const seen=new Set<string>();
  for(const d of docs){
   const nev=konyvCim(d.title,d.filename);docName.set(d.id,nev);
-  out.push({kind:'doc',id:d.id,cim:nev,alcim:'könyv',szoveg:d.filename||'',cel:{href:olvaso(d.id)}});
+  const jegyzet=jegyzetE(d.mime_type);
+  out.push({kind:'doc',id:d.id,cim:nev,alcim:jegyzet?'jegyzet':'könyv',szoveg:d.filename||'',cel:{href:megnyitoCim(d.id,d.mime_type)}});
   for(const c of Array.isArray(d.contents)?d.contents:[]){
    const key=d.id+'|'+c.page+'|'+c.title.toLowerCase();if(seen.has(key))continue;seen.add(key);
-   out.push({kind:'chapter',id:key,cim:c.title,alcim:nev+', '+c.page+'. oldal',szoveg:c.group||'',cel:{href:olvaso(d.id,c.page)}});
+   // Jegyzetnél a szám a címsor sorszáma, nem oldalszám.
+   out.push({kind:'chapter',id:key,cim:c.title,alcim:jegyzet?nev+(c.group&&c.group!==c.title?', '+c.group:''):nev+', '+c.page+'. oldal',szoveg:c.group||'',cel:{href:megnyitoCim(d.id,d.mime_type,c.page)}});
   }
  }
  // Régebben párosított könyvek: a fejezetcím csak a párosításban van meg.

@@ -20,3 +20,19 @@ export function gyakorloFejezet(cim:string|null|undefined):boolean{
  const c=normalCim(cim);
  return MINTA.test(c)&&!KIVETEL.test(c);
 }
+
+/**
+ * Nem tartalmi sorok (végeredmények, megoldások, tárgymutató, előszó stb.).
+ * Ezek semmilyen témához nem tartoznak: csak a tartalomjegyzékben és a keresőben látszanak.
+ * A teljes címre illeszkedik, hogy pl. az „Egyenletek megoldása” ne essen bele.
+ */
+const NEM_TARTALMI=[
+ 'a feladatok vegeredmenyei','feladatok vegeredmenyei','vegeredmenyek','a feladatok megoldasai','feladatok megoldasai',
+ 'megoldasok','megoldokulcs','targymutato','nev- es targymutato','nevmutato','fogalomtar','irodalomjegyzek',
+ 'felhasznalt irodalom','forrasjegyzek','kepjegyzek','abrajegyzek','kepek forrasa','eloszo','tartalom','tartalomjegyzek','impresszum'
+];
+export function nemTartalmi(cim:string|null|undefined):boolean{
+ if(!cim)return false;
+ const c=normalCim(cim).replace(/^(?:\d+\.?\s*)/,'').replace(/[.:]+$/,'').trim();
+ return NEM_TARTALMI.includes(c);
+}

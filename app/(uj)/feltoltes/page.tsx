@@ -6,7 +6,7 @@ import {api,ApiError,hasSession,localPrefs} from '../../../lib/client-api';
 import {inspectPdf} from '../../../lib/pdf-contents';
 import {detectOffset,guessContentsPages,openPdf,pageJpeg,thumbnail} from '../../../lib/pdf-pages';
 import {suggestedTopicMatch} from '../../../lib/topic-matching';
-import {gyakorloFejezet} from '../../../lib/gyakorlo';
+import {gyakorloFejezet,nemTartalmi} from '../../../lib/gyakorlo';
 import {Icon,spineColor} from '../icons';
 import {konyvCim} from '../../../lib/konyv-cim';
 import {GRADE_CHOICES,LEVEL_LABEL,guessGrade,guessLevel} from '../../../lib/besorolas';
@@ -22,11 +22,12 @@ type Step='pick'|'upload'|'contents'|'offset'|'reading'|'match'|'saving'|'done';
 // practice: gyakorló vagy témazáró fejezet, a nagy fejezet témakörét kapta.
 type Row={key:number;title:string;group:string;page:number;target:string;state:'suggested'|'approved'|'skipped'|'open';newParent:string;extra:string[];picked?:boolean;adding?:boolean;links?:string[];practice?:boolean};
 type ExLink={id:string;topic_id:string;pdf_page:number|null;chapter_title:string|null;category:string};
-type Entry={title:string;page:number;group:string};
+// skip: korábban kihagyott sor (a mentett tartalomjegyzékben megjegyezve).
+type Entry={title:string;page:number;group:string;skip?:boolean};
 type Audit={numberedCount:number;range:number[]|null;missing:number[];duplicated:number[]};
 
 const KINDS:[string,string][]=[['reference','Tankönyv'],['exercise','Feladatgyűjtemény'],['worksheet','Feladatlap'],['solution','Megoldókulcs'],['notes','Jegyzet'],['table','Függvénytáblázat']];
-const MIME:Record<string,string>={pdf:'application/pdf',jpg:'image/jpeg',jpeg:'image/jpeg',png:'image/png',webp:'image/webp',docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',xlsx:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',pptx:'application/vnd.openxmlformats-officedocument.presentationml.presentation'};
+const MIME:Record<string,string>={pdf:'application/pdf',jpg:'image/jpeg',jpeg:'image/jpeg',png:'image/png',webp:'image/webp',docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',xlsx:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',pptx:'application/vnd.openxmlformats-officedocument.presentationml.presentation',txt:'text/plain',md:'text/markdown'};
 // Egy AI-kérés legfeljebb 4 oldalt kap; hosszabb tartalomjegyzéknél több körben olvassuk.
 const AI_BATCH=4;
 const MAX_AI_PAGES=12;
@@ -85,6 +86,9 @@ function Feltoltes(){
  const [offsetPage,setOffsetPage]=useState(10);
  const [offsetThumb,setOffsetThumb]=useState('');
  const [printed,setPrinted]=useState('');
+ // Ha a tartalomjegyzék nem a könyv elején van: a tanár beírja a PDF-oldal számát.
+ const [jumpTo,setJumpTo]=useState('');
+ const [jumping,setJumping]=useState(false);
  const [rows,setRows]=useState<Row[]>([]);
  const [audit,setAudit]=useState<Audit|null>(null);
  const [status,setStatus]=useState('');
@@ -187,8 +191,10 @@ function Feltoltes(){
   setError('');setStep('upload');setProgress(0);existingRef.current=[];
   try{
    if(file.size>500*1024*1024)throw new Error('Legfeljebb 500 MB-os fájl tölthető fel.');
-   const mime=file.type||MIME[file.name.split('.').pop()?.toLowerCase()||'']||'';
-   if(!mime)throw new Error('Ezt a fájltípust nem tudom fogadni. PDF, kép, Word, Excel vagy PowerPoint lehet.');
+   // A .md fájlt a böngészők néha más típusnak mondják; a kiterjesztés dönt.
+   const ext=file.name.split('.').pop()?.toLowerCase()||'';
+   const mime=ext==='md'||ext==='txt'?MIME[ext]:file.type||MIME[ext]||'';
+   if(!mime)throw new Error('Ezt a fájltípust nem tudom fogadni. PDF, kép, Word, szöveg, Excel vagy PowerPoint lehet.');
    setStatus('Feltöltés előkészítése…');
    const up=await api<{documentId:string;uploadUrl:string}>('upload',{method:'POST',body:JSON.stringify({filename:file.name,title:title.trim()||file.name,mimeType:mime,size:file.size})});
    setStatus('Feltöltés a privát tárhelyre…');
@@ -229,8 +235,9 @@ function Feltoltes(){
    }
    // 2. Van mentett tartalomjegyzék: nem olvassuk újra, rögtön párosítunk.
    if(doc?.contents?.length){
-    buildRows(doc.contents.map(c=>({title:c.title,page:c.page,group:c.group||''})),list);
-    setStatus(links.length?'Betöltöttem a mentett tartalomjegyzéket és a meglévő kapcsolatokat.':'Betöltöttem a mentett tartalomjegyzéket.');
+    buildRows(doc.contents.map(c=>({title:c.title,page:c.page,group:c.group||'',skip:c.skip===true})),list);
+    const skipped=doc.contents.filter(c=>c.skip===true).length;
+    setStatus((links.length?'Betöltöttem a mentett tartalomjegyzéket és a meglévő kapcsolatokat.':'Betöltöttem a mentett tartalomjegyzéket.')+(skipped?' A korábban kihagyott '+skipped+' sort most is kihagytam, ezekre nem kérek AI-javaslatot.':''));
     setStep('match');return;
    }
    // 3. Nincs mentett tartalomjegyzék: a PDF-ből olvassuk ki, ahogy eddig.
@@ -241,6 +248,24 @@ function Feltoltes(){
    const asFile=new File([blob],d.filename,{type:'application/pdf'});
    await preparePdf(await asFile.arrayBuffer(),asFile);
   }catch(e){setStep('pick');fail(e)}
+ }
+
+ /** A beírt PDF-oldaltól 6 oldal előnézete; a beírt oldalt rögtön kijelöljük. */
+ async function showFrom(){
+  if(!pdf)return;
+  const n=Number(jumpTo);
+  if(!Number.isInteger(n)||n<1||n>pdf.numPages){setError('A könyv 1 és '+pdf.numPages+' oldal között van. Ebből írj be egy számot.');return}
+  setError('');setJumping(true);
+  try{
+   const want=Array.from({length:6},(_,i)=>n+i).filter(p=>p<=pdf.numPages);
+   const have=new Set(thumbs.map(t=>t.page));
+   const added:{page:number;url:string}[]=[];
+   for(const p of want)if(!have.has(p))added.push({page:p,url:await thumbnail(pdf,p)});
+   setThumbs(v=>[...v,...added].sort((a,b)=>a.page-b.page));
+   setPicked(v=>v.includes(n)||v.length>=MAX_AI_PAGES?v:[...v,n].sort((a,b)=>a-b));
+   setStatus('Megmutattam a '+n+'. oldaltól kezdődő lapokat, és a '+n+'. oldalt kijelöltem. Jelöld be a többi tartalomjegyzék-oldalt is.');
+   setTimeout(()=>document.getElementById('thumb-'+n)?.scrollIntoView({block:'center',behavior:'smooth'}),60);
+  }catch(e){fail(e)}finally{setJumping(false)}
  }
 
  function togglePage(p:number){
@@ -302,6 +327,8 @@ function Feltoltes(){
  /**
   * A párosító sorok felépítése. A már elmentett kapcsolatok (újrapárosításnál) jóváhagyottként
   * kerülnek a sorukhoz, oldalszám alapján; ha két fejezet ugyanazon az oldalon kezdődik, a cím is számít.
+  * A korábban kihagyott sorok és a nem tartalmi sorok (pl. „A feladatok végeredményei”) kihagyva indulnak,
+  * így nem kapnak AI-javaslatot. A „Mégis kell” gombbal visszavehetők.
   */
  function buildRows(items:Entry[],list:Topic[]=topics){
   setAiState('idle');
@@ -316,6 +343,7 @@ function Feltoltes(){
     const ids=[...new Set(here.map(l=>l.topic_id))];
     return {key:i,title:it.title,group:it.group,page:it.page,target:ids[0],state:'approved',newParent:'',extra:ids.slice(1),links:here.map(l=>l.id)};
    }
+   if(it.skip||nemTartalmi(it.title))return {key:i,title:it.title,group:it.group,page:it.page,target:'',state:'skipped',newParent:'',extra:[]};
    const match=suggestedTopicMatch(it.title,candidates);
    return {key:i,title:it.title,group:it.group,page:it.page,target:match?.id||'',state:match?'suggested':'open',newParent:'',extra:[]};
   }));
@@ -341,7 +369,8 @@ function Feltoltes(){
  // Ha a témák később érkeznek, mint a fejezetek, a javaslatokat frissítjük.
  useEffect(()=>{
   if(step!=='match'||!topics.length)return;
-  setRows(v=>v.some(r=>r.state!=='open'||r.target)?v:v.map(r=>{
+  setRows(v=>v.some(r=>(r.state!=='open'&&r.state!=='skipped')||r.target)?v:v.map(r=>{
+   if(r.state==='skipped')return r;
    const subs=topics.filter(t=>t.parent_id);const m=suggestedTopicMatch(r.title,subs.length?subs:topics);
    return m?{...r,target:m.id,state:'suggested'}:r;
   }));
@@ -384,14 +413,17 @@ function Feltoltes(){
  },[step,aiState,topics,subjectId,rows,fail]);
 
  const update=(key:number,patch:Partial<Row>)=>setRows(v=>v.map(r=>r.key===key?{...r,...patch}:r));
- /** Kézi választás: a következő, még párosítatlan (vagy korábban így kitöltött) sorokba javaslatként átvisszük. */
+ /**
+  * Kézi választás: a következő, még párosítatlan (vagy korábban így kitöltött) sorokba javaslatként átvisszük.
+  * A nem tartalmi sorokba (végeredmények, megoldások, tárgymutató) nem visszük át.
+  */
  function pick(key:number,target:string){
   if(!target)return;
   setRows(v=>{
    const at=v.findIndex(r=>r.key===key);
    return v.map((r,i)=>{
     if(r.key===key)return {...r,target,state:'approved',picked:false};
-    if(i>at&&r.state!=='approved'&&r.state!=='skipped'&&(!r.target||r.picked))return {...r,target,state:'suggested',picked:true};
+    if(i>at&&r.state!=='approved'&&r.state!=='skipped'&&(!r.target||r.picked)&&!nemTartalmi(r.title))return {...r,target,state:'suggested',picked:true};
     return r;
    });
   });
@@ -446,7 +478,8 @@ function Feltoltes(){
  async function saveContents(){
   if(!docId||!rows.length)return;
   try{
-   await api('library',{method:'PATCH',body:JSON.stringify({id:docId,contents:rows.map(r=>({title:r.title,page:r.page,group:r.group}))})});
+   // A kihagyott sorokat megjelöljük, hogy újrapárosításnál ne kérjünk rájuk újra AI-javaslatot.
+   await api('library',{method:'PATCH',body:JSON.stringify({id:docId,contents:rows.map(r=>r.state==='skipped'?{title:r.title,page:r.page,group:r.group,skip:true}:{title:r.title,page:r.page,group:r.group})})});
    setContentsSaved('saved');
   }catch(e){
    if(e instanceof ApiError&&e.status===409){setContentsSaved('pending-db');return}
@@ -534,9 +567,9 @@ function Feltoltes(){
       <label className="us-field">Évfolyam<select className="up-select" value={grade} onChange={e=>setGrade(e.target.value)}><option value="">Nincs megadva</option>{GRADE_CHOICES.map(g=><option key={g} value={g}>{g}.</option>)}</select></label>
       <label className="us-field">Szint<select className="up-select" value={level} onChange={e=>setLevel(e.target.value)}><option value="">Nincs megadva</option>{Object.entries(LEVEL_LABEL).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>
      </div>
-     <p className="pg-hint" style={{margin:0}}>Az évfolyam alapján rendezem a témaoldalon a könyveket. Több évfolyamos könyvnél hagyd üresen. Word-könyvet PDF-be exportálva tölts fel (Macen: Fájl → Exportálás → PDF), úgy oldalra is ugrik.</p>
+     <p className="pg-hint" style={{margin:0}}>Az évfolyam alapján rendezem a témaoldalon a könyveket. Több évfolyamos könyvnél hagyd üresen. Word-könyvet PDF-be exportálva tölts fel (Macen: Fájl → Exportálás → PDF), úgy oldalra is ugrik. A Word- és szöveges jegyzetek (DOCX, TXT) eredetiben is jók: a címsoraikból kattintható tartalomjegyzék lesz.</p>
      <label className="up-drop">
-      <input type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.docx,.xlsx,.pptx,application/pdf" onChange={e=>chooseFile(e.currentTarget.files?.[0]||null)}/>
+      <input type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.docx,.txt,.md,.xlsx,.pptx,application/pdf" onChange={e=>chooseFile(e.currentTarget.files?.[0]||null)}/>
       <span className="up-drop-icon"><Icon name="upload" size={24}/></span>
       <b>{file?file.name:'Fájl kiválasztása'}</b>
       <small>{file?Math.max(1,Math.round(file.size/1048576))+' MB':'iPaden a Fájlok alkalmazásból, Macen a Finderből. Legfeljebb 500 MB.'}</small>
@@ -558,13 +591,18 @@ function Feltoltes(){
      <h2>Hol van a tartalomjegyzék?</h2>
      <p className="us-status" role="status">{status} Legfeljebb {MAX_AI_PAGES} oldalt jelölhetsz ki.</p>
      <div className="up-thumbs">
-      {thumbs.map(t=><button key={t.page} type="button" className="up-thumb" aria-pressed={picked.includes(t.page)} onClick={()=>togglePage(t.page)}>
+      {thumbs.map(t=><button key={t.page} id={'thumb-'+t.page} type="button" className="up-thumb" aria-pressed={picked.includes(t.page)} onClick={()=>togglePage(t.page)}>
        {/* eslint-disable-next-line @next/next/no-img-element */}
        <img src={t.url} alt={t.page+'. PDF-oldal'}/>
        <span>{t.page}.</span>
       </button>)}
       {pdf&&thumbs.length<Math.min(pdf.numPages>300?40:24,pdf.numPages)&&<p className="us-status">Előnézetek készítése…</p>}
      </div>
+     <div className="up-jump">
+      <label className="us-field">Máshol van a tartalomjegyzék? A PDF-oldal száma<input inputMode="numeric" value={jumpTo} placeholder={pdf?'1–'+pdf.numPages:''} onChange={e=>setJumpTo(e.target.value.replace(/\D/g,''))} onKeyDown={e=>{if(e.key==='Enter')void showFrom()}}/></label>
+      <button type="button" className="us-btn" disabled={!jumpTo||jumping} onClick={()=>void showFrom()}>{jumping?'Előnézet…':'Mutasd'}</button>
+     </div>
+     <p className="pg-hint" style={{margin:0}}>A PDF-oldal az, ahányadik lap a fájlban (az olvasó oldalszámlálója is ezt mutatja), nem a lap alján nyomtatott szám.</p>
      <div className="up-actions"><span>{picked.length?picked.length+' oldal kijelölve':'Még nincs kijelölt oldal'}</span><button type="button" className="us-btn us-btn-dark" disabled={!picked.length} onClick={()=>void confirmContents()}>Tartalomjegyzék kiolvasása<Icon name="arrow" size={16}/></button></div>
     </section>}
 

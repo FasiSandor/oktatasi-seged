@@ -5,6 +5,7 @@ import Borito from './Borito';
 import {konyvCim} from '../../lib/konyv-cim';
 import {KIND_LABEL} from '../../lib/besorolas';
 import {gyakorloFejezet} from '../../lib/gyakorlo';
+import {jegyzetE} from '../../lib/jegyzet';
 
 export type LinkRow={
  link_id:string;topic_id:string;topic_name:string;depth:number;pdf_page:number|null;chapter_title:string|null;category:string;
@@ -64,7 +65,7 @@ export default function Temaoldal({rows,videos,editing,busy,onOpen,onRename,onUn
      // A gyakorló és témazáró fejezetek a kártya alján, külön alcím alatt (szerkesztéskor nem).
      const practice=editing?[]:all.filter(c=>c.pdf_page&&gyakorloFejezet(c.chapter_title));
      const rows=practice.length?all.filter(c=>!practice.includes(c)):all;
-     const where=chapters.length>1?chapters.length+' helyen szerepel ez a téma':isPdf?(chapters.length?'A témánál nyílik ki':'Még nincs megadva a hely, az elején nyílik'):'Eredeti fájl';
+     const where=chapters.length>1?chapters.length+' helyen szerepel ez a téma':isPdf?(chapters.length?'A témánál nyílik ki':'Még nincs megadva a hely, az elején nyílik'):jegyzetE(d.mime_type)?'Jegyzet, címsoros tartalomjegyzékkel':'Eredeti fájl';
      return <article key={d.link_id} className={'tb-card'+(editing?' is-edit':'')}>
       <div className="tb-head" style={{borderLeftColor:color}}>
        <Borito id={d.id} pdf={isPdf} className="tb-cover"/>

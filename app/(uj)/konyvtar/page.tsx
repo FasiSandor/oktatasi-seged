@@ -3,6 +3,7 @@ import {Suspense,useCallback,useEffect,useMemo,useState} from 'react';
 import {useSearchParams} from 'next/navigation';
 import {api,ApiError,hasSession} from '../../../lib/client-api';
 import {konyvCim} from '../../../lib/konyv-cim';
+import {jegyzetE,megnyitoCim} from '../../../lib/jegyzet';
 import {GRADE_CHOICES,KINDS,KIND_LABEL,LEVEL_LABEL,guessGrade,guessLevel} from '../../../lib/besorolas';
 import {Icon} from '../icons';
 import Borito from '../Borito';
@@ -148,7 +149,7 @@ function Konyvtar(){
   }catch(e){fail(e)}finally{setBusy(false)}
  }
 
- const read=(b:Book,page?:number|null)=>'/olvaso?doc='+encodeURIComponent(b.id)+(page?'&page='+page:'');
+ const read=(b:Book,page?:number|null)=>megnyitoCim(b.id,b.mime_type,page);
 
  if(phase==='checking')return <div className="us-login"><p className="us-status">Betöltés…</p></div>;
  if(phase==='login')return <Belepes onDone={()=>setPhase('ready')}/>;
@@ -178,7 +179,7 @@ function Konyvtar(){
     <h2 className="us-grade-head">{g.name}<small>{g.books.length} könyv</small></h2>
     <div className="pg-books">
      {g.books.map(b=>{
-      const name=konyvCim(b.title,b.filename);const isPdf=b.mime_type==='application/pdf';
+      const name=konyvCim(b.title,b.filename);const isPdf=b.mime_type==='application/pdf';const isNote=jegyzetE(b.mime_type);
       const toc:Entry[]=b.contents?.length?b.contents:(chapters[b.id]||[]).filter(c=>c.page).map(c=>({title:c.title||'Fejezet',page:c.page!,group:c.topics}));
       return <article key={b.id} id={'book-'+b.id} className={'pg-book'+(editId===b.id?' is-edit':'')}>
        <div className="pg-book-main">
@@ -188,7 +189,7 @@ function Konyvtar(){
          <a href={read(b)} className="pg-book-title">{name}</a>
          <span className="pg-meta">{[b.grade?b.grade+'. évfolyam':'évfolyam nincs megadva',b.link_count?b.link_count+' hivatkozás a témákban':'még nincs témához kötve'].join(' · ')}</span>
          <div className="pg-actions">
-          {isPdf&&<button type="button" className="us-btn us-btn-ghost" aria-expanded={tocId===b.id} onClick={()=>void toggleToc(b)}><Icon name="lines" size={16}/>Tartalomjegyzék</button>}
+          {(isPdf||(isNote&&!!b.contents?.length))&&<button type="button" className="us-btn us-btn-ghost" aria-expanded={tocId===b.id} onClick={()=>void toggleToc(b)}><Icon name="lines" size={16}/>Tartalomjegyzék</button>}
           {schemaReady&&<button type="button" className="us-btn us-btn-ghost" onClick={()=>editId===b.id?(setEditId(''),setDraft(null)):openEdit(b)}><Icon name="pen" size={16}/>Besorolás</button>}
           {isPdf&&<a className="us-btn us-btn-ghost" href={'/feltoltes?doc='+encodeURIComponent(b.id)}><Icon name="next" size={16}/>Újrapárosítás</a>}
          </div>
@@ -209,7 +210,7 @@ function Konyvtar(){
         {!b.contents?.length&&!chapters[b.id]&&<p className="us-status">Betöltés…</p>}
         {!b.contents?.length&&chapters[b.id]&&<p className="pg-hint">Ennél a könyvnél csak a témákhoz kötött fejezetek vannak meg. Az „Újrapárosítás” után a teljes tartalomjegyzék is elmentődik.</p>}
         {(b.contents?.length||chapters[b.id])&&toc.length===0&&<p className="us-status">Ehhez a könyvhöz még nincs fejezet mentve.</p>}
-        {!!b.contents?.length&&(tocDraft?<>
+        {!!b.contents?.length&&!isNote&&(tocDraft?<>
          <div className="pg-toc-tools">
           <p className="pg-hint">Írd át a csoport nevét, vagy az „Új csoport innen” gombbal válaszd le a sort és az utána következőket. A témákhoz kötött fejezeteket ez nem változtatja meg.</p>
           <button type="button" className="us-btn" onClick={()=>setTocDraft(null)}>Mégse</button>
@@ -229,7 +230,7 @@ function Konyvtar(){
         </>:<div className="pg-toc-tools"><span/><button type="button" className="us-btn us-btn-ghost" onClick={()=>setTocDraft(b.contents!.map(e=>({...e,group:e.group||''})))}><Icon name="pen" size={16}/>Csoportok javítása</button></div>)}
         {!tocDraft&&<ol className="pg-toc-list">
          {toc.map((c,i)=><li key={i}>{c.group&&(i===0||toc[i-1].group!==c.group)&&b.contents?.length?<span className="pg-toc-group">{c.group}</span>:null}
-          <a href={read(b,c.page)} className="us-ch-btn"><span className="us-ch-page">{c.page}. o.</span><span className="us-ch-title"><span>{c.title}</span>{!b.contents?.length&&c.group&&<small className="us-ch-topic">{c.group}</small>}</span></a>
+          <a href={read(b,c.page)} className="us-ch-btn"><span className="us-ch-page">{isNote?c.page+'.':c.page+'. o.'}</span><span className="us-ch-title"><span>{c.title}</span>{!b.contents?.length&&c.group&&<small className="us-ch-topic">{c.group}</small>}</span></a>
          </li>)}
         </ol>}
        </div>}
