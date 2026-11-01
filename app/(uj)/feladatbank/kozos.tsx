@@ -12,7 +12,7 @@ export type Feladat={id:string;vizsga_id?:string;sorszam:number;reszfeladat:stri
 export const vizsgaCim=(v:{ev?:number;honap?:number;szint?:string})=>(v.ev||'')+'. '+honapNev(v.honap)+', '+szintNev(v.szint);
 export const ALLAPOT:Record<string,string>={hianyos:'Hiányos',bontva:'Feladatokra bontva',besorolva:'Besorolva'};
 
-export const gondolkodasBe=()=>localPrefs.get<boolean>('fb-gondolkodas',true);
+export const gondolkodasBe=()=>localPrefs.get<boolean>('fb-gondolkodas',false);
 export const gondolkodasMent=(v:boolean)=>localPrefs.set('fb-gondolkodas',v);
 
 /**

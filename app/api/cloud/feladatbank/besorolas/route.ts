@@ -21,7 +21,7 @@ export async function POST(req:NextRequest){
   owner=await ownerFromRequest(req);
   const b=await req.json();
   if(!isUuid(b.vizsgaId)||(b.resz!=='I'&&b.resz!=='II'))throw Error('INVALID');
-  const gondolkodas=b.gondolkodas!==false;
+  const gondolkodas=b.gondolkodas===true;
   const key=process.env.GEMINI_API_KEY;
   if(!key)return Response.json({error:'A Gemini API-kulcs nincs beállítva az Oktatási Segéd Vercel-projektjében.'},{status:503});
   const model=process.env.GEMINI_MODEL||'gemini-2.5-flash';

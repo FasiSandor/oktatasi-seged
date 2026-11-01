@@ -24,7 +24,7 @@ export default function FeladatbankOldal(){
  const [sorok,setSorok]=useState<Sor[]>([]);
  const [fut,setFut]=useState(false);
  const [folyamat,setFolyamat]=useState<Record<string,string>>({});
- const [gondolkodas,setGondolkodas]=useState(true);
+ const [gondolkodas,setGondolkodas]=useState(false);
  const [toast,setToast]=useState('');
 
  const fail=useCallback((e:unknown)=>{
@@ -158,7 +158,7 @@ export default function FeladatbankOldal(){
         <h3><a href={'/feladatbank/vizsga?id='+v.id}>{honapNev(v.honap)} {Number(v.datum.slice(8,10))}. · {szintNev(v.szint)}</a></h3>
         <span className={'fb-allapot is-'+v.allapot}>{ALLAPOT[v.allapot]||v.allapot}</span>
        </div>
-       <p className="fb-meta">{v.feladatok||0} feladat · {v.besorolt||0} besorolva{v.ellenorizendo?' · '+v.ellenorizendo+' ellenőrizendő':''} · {v.pontok||0} pont{v.vizsgakod?' · '+v.vizsgakod:''}</p>
+       <p className="fb-meta">{v.feladatok||0} feladat · {v.besorolt||0} besorolva{v.ellenorizendo?' · '+v.ellenorizendo+' ellenőrizendő':''} · {v.pontok||0} pont{v.szint!=='emelt'&&v.pontok?' (a II. B mind a három feladatával)':''}{v.vizsgakod?' · '+v.vizsgakod:''}</p>
        {!v.van_ut&&<p className="fb-figy">Hiányzik a javítási útmutató.</p>}
        {!v.van_fl&&<p className="fb-figy">Hiányzik a feladatlap.</p>}
        {(v.bontas_hibak||[]).filter(h=>!/^Hiányzik/.test(h)).map(h=><p key={h} className="fb-figy">{h}</p>)}
