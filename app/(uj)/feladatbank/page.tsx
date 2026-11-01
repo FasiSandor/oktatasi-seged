@@ -76,7 +76,10 @@ export default function FeladatbankOldal(){
    const put=await fetch(r.uploadUrl!,{method:'PUT',headers:{'Content-Type':'application/pdf'},body:s.file});
    if(!put.ok)throw new Error('A fájl feltöltése nem sikerült (HTTP '+put.status+').');
    const k=await api<{vizsgaId:string;feladatok:number;hibak:string[]}>('feladatbank/kesz',{method:'POST',body:JSON.stringify({fajlId:r.fajlId})},60000);
-   frissit(s.kulcs,{allapot:'feltoltve',vizsgaId:k.vizsgaId,uzenet:(k.feladatok?k.feladatok+' feladat felismerve.':'Feltöltve.')+(k.hibak.length?' '+k.hibak.join(' '):'')});
+   // A „Hiányzik a …” jelzés itt félrevezető lenne, ha a pár a csomag következő fájlja:
+   // a Lapok fülön úgyis látszik, ha a végén tényleg hiányzik valami.
+   const gondok=k.hibak.filter(h=>!/^Hiányzik/.test(h));
+   frissit(s.kulcs,{allapot:'feltoltve',vizsgaId:k.vizsgaId,uzenet:(k.feladatok?k.feladatok+' feladat felismerve.':'Feltöltve.')+(gondok.length?' '+gondok.join(' '):'')});
    return k.vizsgaId;
   }catch(e){
    if(e instanceof ApiError&&e.status===401)throw e;
