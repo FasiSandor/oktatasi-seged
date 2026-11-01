@@ -51,9 +51,18 @@ export function azonosit(oldalak:Oldalak,fajlnev:string):Azonositas{
  const nevbol=nevbolOlvas(fajlnev);
  const fig:string[]=[];
 
+ // Oldalanként számolunk, mert a feladatlap végén is szerepelhet egy utalás az útmutatóra
+ // („…a javítási-értékelési útmutatóban találhatók”). Az útmutató szinte minden oldalán ott a cím,
+ // a feladatlapén a „Név:” vagy „Azonosító jel” fejléc.
+ let utOldal=0,flOldal=0;
+ for(const o of oldalak){
+  const t=o.map(tisztit).join('\n');
+  if(/javítási[- ]?értékelési\s*útmutató(?!ban|t\b)/i.test(t))utOldal++;
+  if(/Név:|Azonosító jel|Időtartam:|Pótlapok száma/i.test(t))flOldal++;
+ }
  let tipus:Tipus|null=null;
- if(/javítási[- ]?értékelési\s*útmutató/i.test(teljes))tipus='ut';
- else if(/Név:|Azonosító jel|Időtartam:|Pótlapok száma/i.test(teljes))tipus='fl';
+ if(utOldal>flOldal)tipus='ut';
+ else if(flOldal>0)tipus='fl';
 
  const kozep=(teljes.match(/KÖZÉPSZINTŰ|középszint/gi)||[]).length;
  const emelt=(teljes.match(/EMELT SZINTŰ|emelt szint/gi)||[]).length;
