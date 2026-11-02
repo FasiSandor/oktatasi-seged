@@ -21,7 +21,7 @@ export async function POST(req:NextRequest){
   for(const image of images)parts.push({text:'PDF page '+image.page+' (table of contents image follows)'},{inlineData:{mimeType:'image/jpeg',data:image.data}});
   let response:Response;
   try{
-   response=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(model)+':generateContent',{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key},body:JSON.stringify({contents:[{role:'user',parts}],generationConfig:{responseMimeType:'application/json',temperature:0,maxOutputTokens:8192}}),signal:AbortSignal.timeout(50000)});
+   response=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(model)+':generateContent',{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key},body:JSON.stringify({contents:[{role:'user',parts}],generationConfig:{responseMimeType:'application/json',temperature:0,maxOutputTokens:16384,...(/^gemini-2\.5-flash/.test(model)?{thinkingConfig:{thinkingBudget:0}}:{})}}),signal:AbortSignal.timeout(50000)});
   }catch(e){
    await recordAiUsage(owner,'contents',model,undefined,false);
    const slow=e instanceof Error&&(e.name==='TimeoutError'||e.name==='AbortError');
@@ -31,9 +31,32 @@ export async function POST(req:NextRequest){
   const output=await response.json();
   await recordAiUsage(owner,'contents',model,output?.usageMetadata);
   const txt=output?.candidates?.[0]?.content?.parts?.map((x:{text?:string})=>x.text||'').join('')||'';
-  let parsed:{lessons?:Lesson[]};try{parsed=JSON.parse(txt)}catch{return Response.json({error:'A Gemini nem adott értelmezhető fejezetlistát.'},{status:502})}
+  // A „gondolkodás” elvitte a kimeneti keretet, és a lista félbeszakadt: ezért a 2.5 Flash itt gondolkodás nélkül fut.
+  // Ha mégis félbeszakad, a teljes sorokat megmentjük.
+  let parsed:{lessons?:Lesson[]}={};
+  const clean=txt.replace(/^\s*```(?:json)?\s*/i,'').replace(/\s*```\s*$/,'');
+  try{parsed=JSON.parse(clean)}catch{
+   const rows=[...clean.matchAll(/\{[^{}]*"title"[^{}]*\}/g)].flatMap(m=>{try{return [JSON.parse(m[0]) as Lesson]}catch{return []}});
+   console.error('Gemini TOC: unparsable JSON',output?.candidates?.[0]?.finishReason,txt.length,'rescued',rows.length);
+   if(rows.length<3)return Response.json({error:'A Gemini nem adott értelmezhető fejezetlistát. Próbáld újra, vagy jelölj ki egyszerre kevesebb oldalt.'},{status:502});
+   parsed={lessons:rows};
+  }
   const lessons=(Array.isArray(parsed.lessons)?parsed.lessons:[]).filter((x):x is Lesson=>typeof x?.title==='string'&&x.title.trim().length>=4&&x.title.length<=160&&(x.chapterTitle===undefined||(typeof x.chapterTitle==='string'&&x.chapterTitle.length<=120))&&Number.isInteger(x.printedPage)&&x.printedPage>0&&x.printedPage<5000).slice(0,150);
-  const validNumbers=lessons.map(x=>x.lessonNumber).filter((n):n is number=>Number.isInteger(n)&&Number(n)>=1&&Number(n)<=999);
+  const okNumber=(n:unknown):n is number=>Number.isInteger(n)&&Number(n)>=1&&Number(n)<=999;
+  const validNumbers=lessons.map(x=>x.lessonNumber).filter(okNumber);
+  // Sok általános iskolai könyvben a leckék számozása fejezetenként újraindul (1., 2., … minden nagy fejezetben).
+  // Ilyenkor a fejezeten belül nézzük a hiányt és az ismétlődést, nem az egész könyvben.
+  const byChapter=new Map<string,number[]>();
+  for(const x of lessons)if(okNumber(x.lessonNumber)){const k=(x.chapterTitle||'').trim();byChapter.set(k,[...(byChapter.get(k)||[]),x.lessonNumber])}
+  const restarts=byChapter.size>=2&&[...byChapter.values()].filter(list=>list.includes(1)).length>=2;
+  if(restarts){
+   const missing:number[]=[],duplicated:number[]=[];
+   for(const list of byChapter.values()){
+    for(const n of list.filter((n,i)=>list.indexOf(n)!==i))if(!duplicated.includes(n))duplicated.push(n);
+    for(let n=Math.min(...list);n<=Math.max(...list);n++)if(!list.includes(n)&&!missing.includes(n))missing.push(n);
+   }
+   return Response.json({lessons,diagnostics:{numberedCount:validNumbers.length,range:null,missing:missing.sort((a,b)=>a-b),duplicated:duplicated.sort((a,b)=>a-b)}});
+  }
   const duplicated=[...new Set(validNumbers.filter((n,i)=>validNumbers.indexOf(n)!==i))].sort((a,b)=>a-b);
   // A sorszámtartományt a felismert leckékből számoljuk, így bármelyik könyvre működik.
   const min=validNumbers.length>=3?Math.min(...validNumbers):0;
