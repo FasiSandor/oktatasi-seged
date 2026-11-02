@@ -20,7 +20,10 @@ type LastRead={document_id:string;pdf_page:number|null;title:string;filename:str
 
 /** Egy tanóra 45 perc: az adatbázis percben tárolja az ajánlott időt. */
 const LESSON_MINUTES=45;
-const GRADES=[9,10,11,12];
+/** A technikumi matek alap évfolyamai; más tantárgynál az évfolyamok a könyvekből jönnek. */
+const ALAP_EVFOLYAMOK=[9,10,11,12];
+/** Óraszámot (tervezett évfolyam) egyelőre csak a technikumi évfolyamokra lehet megadni. */
+const ORASZAM_EVFOLYAM=(g:number)=>g>=9&&g<=12;
 
 export default function Tananyag(){
  const [phase,setPhase]=useState<'checking'|'login'|'ready'>('checking');
@@ -31,6 +34,7 @@ export default function Tananyag(){
  const [placements,setPlacements]=useState<Placement[]>([]);
  const [curriculumReady,setCurriculumReady]=useState(true);
  const [grade,setGrade]=useState(9);
+ const [gradesLoaded,setGradesLoaded]=useState(false);
  const [showAll,setShowAll]=useState(false);
  const [openId,setOpenId]=useState('');
  const [selectedId,setSelectedId]=useState('');
@@ -82,7 +86,7 @@ export default function Tananyag(){
    api<{topics:Topic[]}>('topics?subjectId='+encodeURIComponent(id)),
    api<{topics:{topic_id:string;grades:number[]}[]}>('topic-grades?subjectId='+encodeURIComponent(id)).catch(e=>{if(e instanceof ApiError&&e.status===401)throw e;return {topics:[]}})
   ]);
-  setTopics(t.topics);setTopicGrades(new Map(g.topics.map(x=>[x.topic_id,x.grades])));
+  setTopics(t.topics);setTopicGrades(new Map(g.topics.map(x=>[x.topic_id,x.grades])));setGradesLoaded(true);
   try{
    const p=await api<{profiles:Profile[]}>('curriculum?subjectId='+encodeURIComponent(id));
    const first=p.profiles[0]||null;setProfile(first);setCurriculumReady(true);
@@ -99,7 +103,7 @@ export default function Tananyag(){
   if(!subjectId)return;
   localPrefs.set('us-subject',subjectId);
   const prefs=localPrefs.get<{grade?:number;open?:string;selected?:string}>('us-view-'+subjectId,{});
-  setGrade(GRADES.includes(prefs.grade||0)?prefs.grade!:9);
+  setGrade(prefs.grade&&prefs.grade>=1&&prefs.grade<=13?prefs.grade:9);setGradesLoaded(false);
   setOpenId(prefs.open||'');setSelectedId(prefs.selected||'');setShowAll(false);
   setTopics([]);setRows(null);setTopicGrades(new Map());
   loadCurriculum(subjectId).catch(fail);
@@ -118,6 +122,17 @@ export default function Tananyag(){
   const ids=[t.id,...childrenOf(t.id).map(c=>c.id)];
   return placements.some(p=>p.grade===g&&ids.includes(p.topic_id))||ids.some(id=>(topicGrades.get(id)||[]).includes(g));
  },[placements,childrenOf,topicGrades]);
+ // Az évfolyamsáv: a tantárgy könyveinek és óraszámainak évfolyamai.
+ // Ha nincs adat, vagy van középiskolai évfolyam, a 9–12. mindig látszik (technikumi matek).
+ const grades=useMemo(()=>{
+  const set=new Set<number>();
+  for(const list of topicGrades.values())for(const g of list)set.add(g);
+  for(const p of placements)set.add(p.grade);
+  if(!set.size||[...set].some(g=>g>=9))ALAP_EVFOLYAMOK.forEach(g=>set.add(g));
+  return [...set].sort((a,b)=>a-b);
+ },[topicGrades,placements]);
+ // Ha a mentett évfolyam ennél a tantárgynál nincs, az első évfolyamra állunk.
+ useEffect(()=>{if(gradesLoaded&&!grades.includes(grade))setGrade(grades[0])},[gradesLoaded,grades,grade]);
  const gradeHasPlan=mains.some(t=>inGrade(t,grade));
  const visible=showAll||!gradeHasPlan?mains:mains.filter(t=>inGrade(t,grade));
  const selected=topics.find(t=>t.id===selectedId)||null;
@@ -335,7 +350,7 @@ export default function Tananyag(){
     </a>}
     {subjectPlans.map(p=><a key={p.id} className="us-plan-link" href={'/tanmenet?plan='+encodeURIComponent(p.id)}><Icon name="lines" size={18}/><span><small>Tanmenet</small><b>{p.name}</b></span><Icon name="next" size={18}/></a>)}
     <div className="us-seg" role="group" aria-label="Évfolyam">
-     {GRADES.map(g=><button key={g} type="button" aria-pressed={g===grade} onClick={()=>{setGrade(g);setShowAll(false)}}>{g}.</button>)}
+     {grades.map(g=><button key={g} type="button" aria-pressed={g===grade} onClick={()=>{setGrade(g);setShowAll(false)}}>{g}.</button>)}
     </div>
     <div className="us-side-head">
      <h2 className="us-label">Témakörök</h2>
@@ -352,7 +367,7 @@ export default function Tananyag(){
          <span className="us-topic-num">{i+1}</span>
          <span>{selectedId===t.id?<span className="us-marker">{t.name}</span>:t.name}</span>
         </button>
-        {curriculumReady&&<button type="button" className={'us-hours'+(hours?' is-set':'')} onClick={()=>setHours(t)} disabled={busy} aria-label={hours?t.name+': '+hours+' óra, módosítás':t.name+': óraszám megadása'}>{hours?hours+' óra':'óra?'}</button>}
+        {curriculumReady&&ORASZAM_EVFOLYAM(grade)&&<button type="button" className={'us-hours'+(hours?' is-set':'')} onClick={()=>setHours(t)} disabled={busy} aria-label={hours?t.name+': '+hours+' óra, módosítás':t.name+': óraszám megadása'}>{hours?hours+' óra':'óra?'}</button>}
        </div>
        {open&&<ul className="us-subs">
         {subs.map(s=><li key={s.id}><button type="button" className="us-sub" aria-current={selectedId===s.id} onClick={()=>{setSelectedId(s.id);scrollPending.current=true}}>

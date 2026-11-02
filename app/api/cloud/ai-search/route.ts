@@ -37,7 +37,7 @@ export async function POST(req:NextRequest){
   if(!sorok.length)return Response.json({hits:[]});
 
   const prompt=[
-   'Egy magyar középiskolai tanár saját tananyag-könyvtárában keresel. Alább a könyvtár témáinak, könyvfejezeteinek, tanmenetóráinak és videóinak listája, sorszámmal.',
+   'Egy magyar tanár saját tananyag-könyvtárában keresel. Alább a könyvtár témáinak, könyvfejezeteinek, tanmenetóráinak és videóinak listája, sorszámmal.',
    'A tanár keresése: „'+query+'”',
    'Válaszd ki azokat a sorokat, amelyek tartalmilag ehhez a kereséshez tartoznak, akkor is, ha a keresett szó nem szerepel bennük (rokon fogalom, tétel, módszer, alkalmazás, gyakori elírás vagy köznapi megnevezés).',
    'Legfeljebb 12 sort adj vissza, a legrelevánsabbal kezdve. Ha semmi nem illik, üres listát adj. Ne találj ki sorszámot.',

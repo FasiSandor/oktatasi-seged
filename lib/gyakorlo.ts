@@ -29,7 +29,7 @@ export function gyakorloFejezet(cim:string|null|undefined):boolean{
 const NEM_TARTALMI=[
  'a feladatok vegeredmenyei','feladatok vegeredmenyei','vegeredmenyek','a feladatok megoldasai','feladatok megoldasai',
  'megoldasok','megoldokulcs','targymutato','nev- es targymutato','nevmutato','fogalomtar','irodalomjegyzek',
- 'felhasznalt irodalom','forrasjegyzek','kepjegyzek','abrajegyzek','kepek forrasa','eloszo','tartalom','tartalomjegyzek','impresszum'
+ 'felhasznalt irodalom','bevezetes','forrasjegyzek','kepjegyzek','abrajegyzek','kepek forrasa','eloszo','tartalom','tartalomjegyzek','impresszum'
 ];
 export function nemTartalmi(cim:string|null|undefined):boolean{
  if(!cim)return false;

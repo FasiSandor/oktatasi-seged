@@ -43,9 +43,9 @@ export async function POST(req:NextRequest){
   }
   const chapterLines=chapters.map(c=>'C'+c.key+' = '+c.title.trim()+(c.group?.trim()?' (nagy fejezet: '+c.group.trim()+')':''));
   const prompt=(forPlan
-   ?'Egy magyar középiskolai tanmenet óráit kell párosítanod a tanár tananyagfájával. Minden „fejezet” egy tanóra leírása.\n'
+   ?'Egy magyar iskolai tanmenet óráit kell párosítanod a tanár tananyagfájával. Minden „fejezet” egy tanóra leírása.\n'
     +'Összefoglaló, gyakorló és témazáró óránál azt a témakört add meg, amelyikről az óra szól. Bevezető, szintfelmérő, ismétlő év végi és szervezési óránál adj null-t.\n'
-   :'Egy magyar középiskolai tankönyv fejezeteit kell párosítanod a tanár tananyagfájával.\n')
+   :'Egy magyar iskolai (általános vagy középiskolai) tankönyv fejezeteit kell párosítanod a tanár tananyagfájával.\n')
    +'A tananyagfában témakörök vannak, alattuk altémák. Minden évfolyam témakörei szerepelnek benne.\n\n'
    +'Szabályok:\n'
    +'- Minden fejezethez a tartalmilag legjobban illő ALTÉMÁT add meg, ha van ilyen.\n'

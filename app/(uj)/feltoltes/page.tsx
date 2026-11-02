@@ -495,26 +495,33 @@ function Feltoltes(){
   if(!subjectId||!rows.length)return;
   const active=rows.filter(r=>r.state!=='skipped');
   const grouped=active.some(r=>r.group);
-  const items:{name:string;children:string[]}[]=[];
+  // A sorszámot („I.”, „3.”) levesszük a téma nevéről, a tartalomjegyzékben marad.
+  const nev=(v:string)=>(v.replace(/^\s*(?:[IVXLC]+|\d+)\.\s+(?=\S)/,'').trim()||v.trim()).slice(0,120);
+  // Csoportonként: altémák (rendes fejezetek) és a témakörhöz kötött gyakorló/összefoglaló fejezetek.
+  const items:{name:string;children:string[];childKeys:number[];practiceKeys:number[]}[]=[];
   if(grouped){
    for(const r of active){
-    const name=(r.group||'Egyéb').slice(0,120);
-    const last=items[items.length-1];
-    if(last&&last.name===name)last.children.push(r.title.slice(0,120));
-    else items.push({name,children:[r.title.slice(0,120)]});
+    const name=nev(r.group||'Egyéb');
+    let last=items[items.length-1];
+    if(!last||last.name!==name){last={name,children:[],childKeys:[],practiceKeys:[]};items.push(last)}
+    if(gyakorloFejezet(r.title))last.practiceKeys.push(r.key);
+    else{last.children.push(nev(r.title));last.childKeys.push(r.key)}
    }
-  }else for(const r of active)items.push({name:r.title.slice(0,120),children:[]});
-  const what=grouped?items.length+' témakört és alattuk '+active.length+' altémát':active.length+' témakört';
-  if(!window.confirm('A tartalomjegyzékből '+what+' veszek fel a(z) „'+(subjects.find(x=>x.id===subjectId)?.name||'')+'” tantárgyba, és a fejezeteket hozzájuk kötöm. A meglévő témáidat nem módosítom. Mehet?'))return;
+  }else for(const r of active)items.push({name:nev(r.title),children:[],childKeys:[],practiceKeys:[r.key]});
+  const subCount=items.reduce((n,i)=>n+i.children.length,0);
+  const what=grouped?items.length+' témakört és alattuk '+subCount+' altémát':items.length+' témakört';
+  if(!window.confirm('A tartalomjegyzékből '+what+' veszek fel a(z) „'+(subjects.find(x=>x.id===subjectId)?.name||'')+'” tantárgyba, és a fejezeteket hozzájuk kötöm. Az összefoglaló és gyakorló fejezetek a témakörhöz kerülnek. A meglévő témáidat nem módosítom. Mehet?'))return;
   setBuilding(true);setError('');
   try{
-   const r=await api<{items:{id:string;name:string;children:{id:string;name:string}[]}[];topics:Topic[]}>('topics/bulk',{method:'POST',body:JSON.stringify({subjectId,items})},60000);
+   const r=await api<{items:{id:string;name:string;children:{id:string;name:string}[]}[];topics:Topic[]}>('topics/bulk',{method:'POST',body:JSON.stringify({subjectId,items:items.map(i=>({name:i.name,children:i.children}))})},60000);
    setTopics(r.topics);
-   // Minden fejezet a saját altémájához (csoport nélkül a saját témaköréhez) kerül, jóváhagyva.
-   let i=0;const target=new Map<number,string>();
-   if(grouped){
-    for(const it of r.items)for(const c of it.children){const row=active[i++];if(row)target.set(row.key,c.id)}
-   }else r.items.forEach((it,k)=>{const row=active[k];if(row)target.set(row.key,it.id)});
+   // Minden fejezet a saját altémájához, a gyakorló fejezetek (és csoport nélkül minden fejezet) a témakörhöz kerülnek, jóváhagyva.
+   const target=new Map<number,string>();
+   r.items.forEach((it,k)=>{
+    const src=items[k];if(!src)return;
+    it.children.forEach((c,j)=>{const key=src.childKeys[j];if(key!==undefined&&c.id)target.set(key,c.id)});
+    for(const key of src.practiceKeys)target.set(key,it.id);
+   });
    setRows(v=>v.map(row=>target.has(row.key)?{...row,target:target.get(row.key)!,state:'approved',picked:false}:row));
    setAiState('done');
    setStatus('Felvettem a témákat, és minden fejezetet a helyére tettem. Nézd át, aztán mentsd.');

@@ -28,7 +28,7 @@ export async function POST(req:NextRequest){
   if(!/^gemini-[a-z0-9.-]+$/.test(model))throw Error('INVALID');
 
   const prompt=[
-   'Egy magyar középiskolai tanárnak segítesz'+(subject?' ('+subject+')':'')+'. A képen egy tankönyvi vagy feladatgyűjteménybeli feladat van, amelyet a tanár bekeretezett.',
+   'Egy magyar '+(grade&&grade<=8?'általános iskolai':'középiskolai')+' tanárnak segítesz'+(subject?' ('+subject+')':'')+'. A képen egy tankönyvi vagy feladatgyűjteménybeli feladat van, amelyet a tanár bekeretezett.',
    'Csak ezzel a feladattal foglalkozz. Ha a képen több feladat is látszik, a legteljesebben látszóval.',
    grade?'Évfolyam: '+grade+'.'+(level?' Szint: '+level+'szint.':''):'',
    'Írj magyarul, egyszerűen, a diákok szintjén, hogy a tanár órán is használhassa.',
