@@ -28,7 +28,8 @@ const TABLES:{name:string;order:string}[]=[
  {name:'os_plans',order:'id'},
  {name:'os_plan_lessons',order:'id'},
  {name:'os_ai_usage',order:'id'},
- {name:'os_tasks',order:'id'}
+ {name:'os_tasks',order:'id'},
+ {name:'os_lessons',order:'id'}
 ];
 const PAGE=1000;
 const byName=(n:unknown)=>TABLES.find(t=>t.name===n);
