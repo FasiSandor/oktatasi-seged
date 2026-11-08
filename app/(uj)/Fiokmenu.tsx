@@ -3,7 +3,7 @@ import {useEffect,useRef,useState} from 'react';
 import {signOut} from '../../lib/client-api';
 import {Icon} from './icons';
 
-const OLDALAK:[string,string][]=[['/','Főoldal (Tananyag)'],['/feltoltes','Új könyv feltöltése'],['/konyvtar','Könyvtár'],['/tanmenet','Tanmenet'],['/feladatok','Feladataim'],['/feladatbank','Érettségi feladatbank'],['/beallitasok','Beállítások'],['/cloud/videos','Videótár']];
+const OLDALAK:[string,string][]=[['/','Főoldal (Tananyag)'],['/feltoltes','Új könyv feltöltése'],['/konyvtar','Könyvtár'],['/tanmenet','Tanmenet'],['/feladatok','Feladataim'],['/orak','Megtartott órák'],['/feladatbank','Érettségi feladatbank'],['/beallitasok','Beállítások'],['/cloud/videos','Videótár']];
 
 /** Profilgomb a menüvel. Minden oldal fejlécében ugyanez, a jobb szélen. */
 export default function Fiokmenu({onSignedOut}:{onSignedOut?:()=>void}){

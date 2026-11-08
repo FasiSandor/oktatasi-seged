@@ -5,8 +5,8 @@ import {elokeszit,pontoz,reszlet} from '../../../../lib/kereses';
 export const runtime='nodejs';
 
 /** Hány találat jöhet egy-egy fajtából, hogy a lista áttekinthető maradjon. */
-const KERET:Record<KeresoElem['kind'],number>={topic:8,chapter:14,doc:5,lesson:6,task:6,note:6,video:5};
-const ELONY:Record<KeresoElem['kind'],number>={topic:4,chapter:3,doc:2,lesson:1,task:0,note:0,video:0};
+const KERET:Record<KeresoElem['kind'],number>={topic:8,chapter:14,doc:5,lesson:6,taught:8,task:6,note:6,video:5};
+const ELONY:Record<KeresoElem['kind'],number>={topic:4,chapter:3,doc:2,lesson:1,taught:2,task:0,note:0,video:0};
 
 /**
  * Keresés mindenben: témakörök, altémák, könyvek, a könyvek fejezetei (tartalomjegyzék),

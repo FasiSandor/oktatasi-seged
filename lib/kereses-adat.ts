@@ -4,7 +4,7 @@ import {jegyzetE,megnyitoCim} from './jegyzet';
 
 /** Egy kereshető elem. A `cel` mondja meg, hová ugrik a találat. */
 export type KeresoElem={
- kind:'topic'|'doc'|'chapter'|'note'|'task'|'lesson'|'video';
+ kind:'topic'|'doc'|'chapter'|'note'|'task'|'lesson'|'taught'|'video';
  id:string;
  cim:string;      // ami a találati sorban vastagon látszik
  alcim:string;    // könyv, tantárgy, oldal
@@ -28,7 +28,8 @@ export async function keresoElemek(owner:string):Promise<KeresoElem[]>{
  type Task={id:string;answer:string;note:string;topic_name:string|null;title:string|null;filename:string|null;pdf_page:number|null};
  type Lesson={id:string;content:string;lesson_no:number|null;plan_name:string;topic_id:string|null;subject_id:string};
  type Video={id:string;title:string;note:string;url:string;provider:string};
- const [topics,docs,links,notes,tasks,lessons,videos]=await Promise.all([
+ type Taught={id:string;taught_on:string;class_name:string;topic_name:string;note:string};
+ const [topics,docs,links,notes,tasks,lessons,videos,taught]=await Promise.all([
   biztos<Topic>(sql`SELECT t.id,t.name,t.subject_id,s.name AS subject_name,p.name AS parent_name FROM os_topics t JOIN os_subjects s ON s.id=t.subject_id AND s.owner_id=${owner} LEFT JOIN os_topics p ON p.id=t.parent_id WHERE t.owner_id=${owner} ORDER BY s.position,t.position`),
   (async()=>{
    try{return (await sql`SELECT id,title,filename,mime_type,contents FROM os_documents WHERE owner_id=${owner} AND state='ready' ORDER BY created_at DESC`) as Doc[]}
@@ -38,7 +39,8 @@ export async function keresoElemek(owner:string):Promise<KeresoElem[]>{
   biztos<Note>(sql`SELECT n.id,n.document_id,n.pdf_page,n.body,d.title,d.filename FROM os_pdf_notes n JOIN os_documents d ON d.id=n.document_id AND d.state='ready' WHERE n.owner_id=${owner}`),
   biztos<Task>(sql`SELECT k.id,k.answer,k.note,t.name AS topic_name,d.title,d.filename,k.pdf_page FROM os_tasks k LEFT JOIN os_topics t ON t.id=k.topic_id LEFT JOIN os_documents d ON d.id=k.document_id WHERE k.owner_id=${owner} AND (d.id IS NULL OR d.state<>'archived')`),
   biztos<Lesson>(sql`SELECT l.id,l.content,l.lesson_no,p.name AS plan_name,l.topic_id,p.subject_id FROM os_plan_lessons l JOIN os_plans p ON p.id=l.plan_id WHERE l.owner_id=${owner}`),
-  biztos<Video>(sql`SELECT id,title,note,url,provider FROM os_videos WHERE owner_id=${owner}`)
+  biztos<Video>(sql`SELECT id,title,note,url,provider FROM os_videos WHERE owner_id=${owner}`),
+  biztos<Taught>(sql`SELECT id,to_char(taught_on,'YYYY. MM. DD.') AS taught_on,class_name,topic_name,note FROM os_lessons WHERE owner_id=${owner}`)
  ]);
  const out:KeresoElem[]=[];
  const topicById=new Map(topics.map(t=>[t.id,t]));
@@ -67,6 +69,7 @@ export async function keresoElemek(owner:string):Promise<KeresoElem[]>{
   const t=l.topic_id?topicById.get(l.topic_id):undefined;
   out.push({kind:'lesson',id:l.id,cim:l.content,alcim:'tanmenet · '+l.plan_name+(l.lesson_no?', '+l.lesson_no+'. óra':''),szoveg:'',cel:t?{topicId:t.id,subjectId:t.subject_id}:{href:'/tanmenet'}});
  }
+ for(const t of taught)out.push({kind:'taught',id:t.id,cim:t.topic_name||'Téma nélkül',alcim:'megtartott óra · '+t.class_name+' · '+t.taught_on,szoveg:(t.class_name+' '+t.note).trim(),cel:{href:'/felkeszules?lesson='+encodeURIComponent(t.id)}});
  for(const v of videos)if(/^https?:\/\//i.test(v.url))out.push({kind:'video',id:v.id,cim:v.title,alcim:'videó · '+v.provider,szoveg:v.note,cel:{href:v.url,kulso:true}});
  return out;
 }

@@ -111,3 +111,15 @@ export function cleanSources(raw:unknown):PrepBookSource[]{
   return out;
  });
 }
+
+/** 2026-11-10 → „2026. 11. 10.” */
+export function datumSzoveg(iso:string):string{
+ const m=/^(\d{4})-(\d{2})-(\d{2})/.exec(iso||'');
+ return m?m[1]+'. '+m[2]+'. '+m[3]+'.':iso||'';
+}
+
+/** Egy feladat forrása olvasható szövegként: „Könyv, 12. oldal, 3.” */
+export function forrasSzoveg(s:PrepSource|undefined):string{
+ if(!s)return '';
+ return s.book+(s.page?', '+s.page+'. oldal':'')+(s.task?', '+s.task:'');
+}

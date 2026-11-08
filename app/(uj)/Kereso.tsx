@@ -4,11 +4,11 @@ import {api,ApiError,localPrefs} from '../../lib/client-api';
 import {Icon} from './icons';
 
 type Cel={href:string;kulso?:boolean}|{topicId:string;subjectId:string};
-type Talalat={kind:'topic'|'doc'|'chapter'|'note'|'task'|'lesson'|'video';id:string;cim:string;alcim:string;cel:Cel;miert?:string};
+type Talalat={kind:'topic'|'doc'|'chapter'|'note'|'task'|'lesson'|'taught'|'video';id:string;cim:string;alcim:string;cel:Cel;miert?:string};
 
-const IKON:Record<Talalat['kind'],Parameters<typeof Icon>[0]['name']>={topic:'lines',doc:'book',chapter:'book',note:'note',task:'pen',lesson:'lines',video:'wave'};
-const FAJTA:Record<Talalat['kind'],string>={topic:'Témák',chapter:'Fejezetek a könyvekben',doc:'Könyvek',lesson:'Tanmenet',task:'Mentett feladatok',note:'Cetlik',video:'Videók'};
-const SORREND:Talalat['kind'][]=['topic','chapter','doc','lesson','task','note','video'];
+const IKON:Record<Talalat['kind'],Parameters<typeof Icon>[0]['name']>={topic:'lines',doc:'book',chapter:'book',note:'note',task:'pen',lesson:'lines',taught:'note',video:'wave'};
+const FAJTA:Record<Talalat['kind'],string>={topic:'Témák',chapter:'Fejezetek a könyvekben',doc:'Könyvek',lesson:'Tanmenet',taught:'Megtartott órák',task:'Mentett feladatok',note:'Cetlik',video:'Videók'};
+const SORREND:Talalat['kind'][]=['topic','chapter','doc','lesson','taught','task','note','video'];
 
 /**
  * Kereső minden oldalon. Ékezet- és elírástűrő keresés a témákban, a könyvek fejezeteiben,

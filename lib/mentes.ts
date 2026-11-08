@@ -32,7 +32,7 @@ export const tableLabel=(name:string)=>({
  os_subjects:'Tantárgyak',os_topics:'Témák',os_documents:'Könyvek és dokumentumok adatai',os_document_links:'Párosítások (fejezet → téma)',
  os_tool_links:'Eszközlinkek',os_reading_positions:'Olvasási helyek',os_curriculum_profiles:'Tantervi profilok',os_curriculum_sources:'Tantervi források',
  os_curriculum_placements:'Óraszámok',os_topic_requirements:'Követelmények a témákhoz',os_pdf_notes:'Oldaljegyzetek',os_pdf_marks:'Régi kiemelések',
- os_pdf_ink:'Kiemelések és rajzok',os_videos:'Videók',os_lesson_workspaces:'Témajegyzetek',os_plans:'Tanmenetek',os_plan_lessons:'Tanmenetórák',os_ai_usage:'AI-használat',os_tasks:'Mentett feladatok'
+ os_pdf_ink:'Kiemelések és rajzok',os_videos:'Videók',os_lesson_workspaces:'Témajegyzetek',os_plans:'Tanmenetek',os_plan_lessons:'Tanmenetórák',os_ai_usage:'AI-használat',os_tasks:'Mentett feladatok',os_lessons:'Megtartott órák'
 } as Record<string,string>)[name]||name;
 
 export async function makeBackup(onProgress:(text:string)=>void):Promise<{blob:Blob;manifest:Manifest}>{

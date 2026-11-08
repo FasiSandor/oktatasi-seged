@@ -9,6 +9,7 @@ import Temaoldal,{type LinkRow,type VideoRow} from './Temaoldal';
 import Feladatok,{type Task} from './Feladatok';
 import Kereso from './Kereso';
 import Fiokmenu from './Fiokmenu';
+import {datumSzoveg} from '../../lib/orafelkeszito';
 
 type Subject={id:string;name:string};
 type Topic={id:string;name:string;parent_id:string|null;position:number;book_count?:number};
@@ -16,6 +17,7 @@ type Profile={id:string;name:string;grade_from:number;grade_to:number};
 type Placement={id:string;topic_id:string;grade:number;suggested_minutes:number|null};
 type Tool={id:string;label:string;url:string;provider:string};
 type Workspace={notes:string;questions:{question:string;answer:string}[]};
+type Megtartott={id:string;taught_on:string;class_name:string};
 type LastRead={document_id:string;pdf_page:number|null;title:string;filename:string|null};
 
 /** Egy tanóra 45 perc: az adatbázis percben tárolja az ajánlott időt. */
@@ -41,6 +43,7 @@ export default function Tananyag(){
  const [rows,setRows]=useState<LinkRow[]|null>(null);
  const [videos,setVideos]=useState<VideoRow[]>([]);
  const [tasks,setTasks]=useState<Task[]>([]);
+ const [taught,setTaught]=useState<Megtartott[]>([]);
  const [topicGrades,setTopicGrades]=useState<Map<string,number[]>>(new Map());
  const [tools,setTools]=useState<Tool[]>([]);
  const [workspace,setWorkspace]=useState<Workspace|null>(null);
@@ -144,7 +147,7 @@ export default function Tananyag(){
  const loadSeq=useRef(0);
  const loadSelection=useCallback(async(topicId:string)=>{
   const seq=++loadSeq.current;const current=()=>seq===loadSeq.current;
-  setRows(null);setVideos([]);setTools([]);setWorkspace(null);setNotesDraft('');setNotesState('idle');setTasks([]);
+  setRows(null);setVideos([]);setTools([]);setWorkspace(null);setNotesDraft('');setNotesState('idle');setTasks([]);setTaught([]);
   const [d,t]=await Promise.all([
    api<{links:LinkRow[];videos:VideoRow[]}>('topic-page?topicId='+encodeURIComponent(topicId)),
    api<{tools:Tool[]}>('tools?topicId='+encodeURIComponent(topicId))
@@ -152,6 +155,7 @@ export default function Tananyag(){
   if(!current())return;
   setRows(d.links);setVideos(d.videos);setTools(t.tools);
   api<{tasks:Task[]}>('tasks?topicId='+encodeURIComponent(topicId)).then(r=>{if(current())setTasks(r.tasks)}).catch(()=>{});
+  api<{lessons:Megtartott[]}>('lessons?topicId='+encodeURIComponent(topicId)).then(r=>{if(current())setTaught(r.lessons)}).catch(()=>{});
   try{
    const w=await api<{workspace:Workspace}>('lesson-workspace?topicId='+encodeURIComponent(topicId));
    if(!current())return;
@@ -394,6 +398,10 @@ export default function Tananyag(){
       <button type="button" className="us-btn us-btn-ghost us-only-narrow us-to-list" onClick={()=>scrollUnderHeader(sideRef.current)}><Icon name="back" size={16} style={{transform:'rotate(90deg)'}}/>Vissza a témakörökhöz</button>
       <div className="us-crumb">{[subject?.name,grade+'. évfolyam',selectedParent?.name].filter(Boolean).join(' · ')}</div>
       <h1 className="us-title"><span className="us-marker">{selected.name}</span></h1>
+      <div className="pf-tema-sor">
+       <a className="us-btn us-btn-teal" href={'/felkeszules?topic='+encodeURIComponent(selected.id)+'&label='+encodeURIComponent(selected.name)+'&subject='+encodeURIComponent(subjectId)}><Icon name="note" size={18}/>Felkészülés az órára</a>
+       {taught.length>0&&<p className="pf-tanitottad">Ezt az anyagot tanítottad: {taught.slice(0,3).map((l,i)=><span key={l.id}>{i>0&&'; '}<a href={'/felkeszules?lesson='+encodeURIComponent(l.id)}>{datumSzoveg(l.taught_on)}, {l.class_name}</a></span>)}{taught.length>3&&<> <a href={'/orak?topic='+encodeURIComponent(selected.id)}>(+{taught.length-3} további)</a></>}</p>}
+      </div>
      </div>
 
      <section style={{display:'flex',flexDirection:'column',gap:12}} aria-label="Könyvek">

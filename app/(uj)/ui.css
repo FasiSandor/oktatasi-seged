@@ -660,3 +660,88 @@ label.us-btn{cursor:pointer}
 .fb-vaszon-doboz{width:100%;max-width:1100px;margin:0 auto;padding:16px;display:flex;flex-direction:column;align-items:center;gap:12px}
 .fb-vaszon{background:#fff;box-shadow:var(--shadow);border-radius:4px;max-width:100%}
 @media (max-width:640px){.fb-arany{grid-template-columns:1fr auto}.fb-arany-sav{grid-column:1/-1;order:3}.fb-vaszon-doboz{padding:8px}}
+
+/* ---------- Órafelkészítő (0.5.0) ---------- */
+.pf-main{width:100%;max-width:980px;margin:0 auto;padding:24px;display:flex;flex-direction:column;gap:18px}
+.pf-title{margin:0}
+.pf-card{border-radius:var(--radius);background:var(--surface);box-shadow:var(--shadow);padding:18px;display:flex;flex-direction:column;gap:14px}
+.pf-card>h2{margin:0;font-size:19px;font-weight:800}
+.pf-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.pf-head h2{margin:0;font-size:19px;font-weight:800;display:flex;align-items:baseline;gap:10px}
+.pf-head h2 small{font-size:13px;font-weight:600;color:var(--muted)}
+.pf-head-btn{display:flex;gap:2px;flex-wrap:wrap;margin-right:-8px}
+.pf-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+.pf-field{display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:600}
+.pf-field .pg-input,.pf-field .up-select{width:100%}
+.pf-adatok{display:flex;flex-direction:column;gap:12px}
+.pf-area{width:100%;min-height:92px;resize:vertical;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--surface);font-size:15px;line-height:1.5}
+.pf-area:focus,.pg-input:focus{outline:none;border-color:var(--ink)}
+.pf-book{margin:6px 0 4px;font-size:15px;font-weight:800;display:flex;align-items:baseline;gap:10px;overflow-wrap:anywhere}
+.pf-book small{font-size:12px;font-weight:600;color:var(--muted)}
+.pf-src{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:6px 10px;border-radius:12px;background:var(--surface-soft);margin-bottom:6px}
+.pf-src.is-on{background:#FFFBEA;box-shadow:inset 0 0 0 1px var(--warn-line)}
+.pf-src .fb-check{flex:1 1 220px;min-width:0}
+.pf-range{display:flex;align-items:center;gap:6px}
+.pf-range .pg-input{width:84px;min-height:42px;padding:0 10px;text-align:center}
+.pf-o{font-size:13px;color:var(--muted)}
+.pf-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.pf-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px}
+.pf-item{border:1px solid var(--line);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.pf-item.is-diff{border-color:var(--warn-line);background:var(--warn-soft)}
+.pf-item-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.pf-nr{font-weight:800;color:var(--muted);min-width:24px}
+.pf-tag{padding:3px 10px;border-radius:10px;background:var(--surface-soft);font-size:12px;font-weight:700;color:var(--ink-2)}
+.pf-tag.is-ai{background:var(--marker);color:var(--ink)}
+.pf-tag.is-ok{background:var(--teal-soft);color:var(--teal-ink)}
+.pf-tag.is-warn{background:#FDECEA;color:var(--danger)}
+.pf-body{display:flex;flex-direction:column;gap:8px}
+.pf-title-b,.pf-body .pf-title{font-size:16px}
+.pf-text{margin:0;font-size:16px;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere}
+.pf-rule{margin:0;padding:8px 12px;border-radius:10px;background:var(--teal-soft);color:var(--teal-ink);font-size:15px;line-height:1.5;white-space:pre-wrap}
+.pf-rule span{display:block;font-size:11px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;margin-bottom:2px}
+.pf-sol{display:flex;flex-direction:column;gap:4px;padding-top:6px;border-top:1px dashed var(--line)}
+.pf-edit{display:flex;flex-direction:column;gap:8px}
+.pf-actions{display:flex;align-items:center;gap:2px;flex-wrap:wrap;margin-left:-10px}
+.pf-actions .us-btn-ghost{min-height:40px}
+.pf-del{width:40px;height:40px;margin-left:auto;background:transparent;color:var(--muted)}
+.pf-del:hover:not(:disabled){background:#FDECEA;color:var(--danger)}
+.pf-tema-sor{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.pf-tanitottad{margin:0;font-size:14px;color:var(--ink-2);line-height:1.5}
+.pf-tanitottad a{color:var(--teal-ink);font-weight:600;text-decoration:underline;text-underline-offset:2px}
+.pf-szuro{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.pf-szuro .pg-input{flex:1 1 260px}
+.pf-orak{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,420px),1fr));gap:14px;align-items:start}
+.pf-ora{border-radius:var(--radius);background:var(--surface);box-shadow:var(--shadow);padding:16px;display:flex;flex-direction:column;gap:6px}
+.pf-ora-fej{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.pf-ora-datum{font-size:15px}
+.pf-ora-tema{font-size:18px;font-weight:800;line-height:1.25;overflow-wrap:anywhere}
+.pf-ora-tema:hover{background:linear-gradient(transparent 55%,var(--marker) 55%,var(--marker) 92%,transparent 92%)}
+.pf-ora-jegyzet{margin:0;padding:8px 12px;border-radius:10px;background:var(--warn-soft);color:var(--warn-ink);font-size:14px;line-height:1.45;white-space:pre-wrap}
+@media (max-width:720px){.pf-main{padding:16px}}
+
+/* ---------- Nyomtatási nézet ---------- */
+.pr-wrap{width:100%;max-width:860px;margin:0 auto;padding:20px;display:flex;flex-direction:column;gap:16px}
+.pr-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.pr-sheet{background:#fff;color:#000;border-radius:6px;box-shadow:var(--shadow);padding:32px 36px;font-size:15px;line-height:1.5}
+.pr-head h1{margin:0 0 4px;font-size:24px;font-weight:800;letter-spacing:-.3px}
+.pr-head p{margin:0 0 4px;color:#333}
+.pr-name{margin-top:14px!important}
+.pr-src{margin:10px 0 0;font-size:13px;color:#333}
+.pr-sec{margin-top:20px}
+.pr-sec h2{margin:0 0 8px;padding-bottom:4px;border-bottom:2px solid #000;font-size:17px;font-weight:800}
+.pr-item{display:flex;gap:10px;margin-bottom:10px;break-inside:avoid;page-break-inside:avoid}
+.pr-nr{flex:none;min-width:22px;font-weight:800}
+.pr-item p{margin:0 0 4px;white-space:pre-wrap;overflow-wrap:anywhere}
+.pr-rule{padding-left:10px;border-left:3px solid #999;font-style:italic}
+.pr-task{margin-bottom:14px}
+.pr-sol{margin-top:6px;padding:6px 10px;border-left:3px solid #000;background:#f2f2f2}
+.pr-sol b{font-size:12px;letter-spacing:.5px;text-transform:uppercase}
+.pr-from{font-size:12px;color:#555}
+.pr-sheet.is-tanuloi .pr-task{min-height:64px}
+@media print{
+ @page{margin:14mm}
+ html,body{background:#fff!important}
+ .no-print,.us-toast{display:none!important}
+ .pr-wrap{max-width:none;padding:0}
+ .pr-sheet{box-shadow:none;border-radius:0;padding:0;font-size:12.5pt}
+}
